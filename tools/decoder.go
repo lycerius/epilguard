@@ -3,15 +3,12 @@ package tools
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 //Magic command for executing ffmpeg
@@ -41,6 +38,7 @@ type FFMPEGDecoder struct {
 type Frame struct {
 	raw           []byte //Frame container
 	Height, Width int    //Height and Width for the current frame
+	Index         uint
 }
 
 //Pixel Reperesents colored element a within a Frame
@@ -130,46 +128,26 @@ func (f *FFMPEGDecoder) Start() error {
 	f.rawFrameSize = f.FrameHeight * f.FrameWidth * 3
 	f.FrameBuffer = make(chan *Frame, f.FrameBufferSize)
 	//Concurrently fill the framebuffer
-	go func() {
-		startTime := time.Now()
-		fmt.Println("start")
-		for {
-			select {
-			case <-f._OpenedChanel:
-				fmt.Println("Closed")
-				close(f.FrameBuffer)
-				return
-			default:
-
-				if frame, err := f.NextFrame(); err == nil {
-
-					f.FrameBuffer <- frame
-					if len(f.FrameBuffer) == _FrameBufferSize {
-						elapsed := time.Now().Sub(startTime)
-						startTime = time.Now()
-						fmt.Println("Filled buffer to 30 frames. Took ", elapsed.Seconds(), " seconds or ", 30/elapsed.Seconds(), " fps")
-
-					}
-				} else {
-					log.Fatal(err)
-					close(f.FrameBuffer)
-				}
-			}
-		}
-	}()
+	go frameBufferFiller(f)
 	return nil
+
 }
 
 func frameBufferFiller(f *FFMPEGDecoder) {
 	frameBuffer := f.FrameBuffer
+	var fIndex uint
 	for {
 		select {
 		case <-f._OpenedChanel:
 			close(f.FrameBuffer)
+			f.FrameBuffer = nil
+			f.stdout.Close()
 			break
 		default:
 			if frame, err := f.NextFrame(); err == nil {
-				f.FrameBuffer <- frame
+				frame.Index = fIndex
+				fIndex++
+				frameBuffer <- frame
 			}
 		}
 	}
@@ -201,7 +179,15 @@ func (f *FFMPEGDecoder) NextFrame() (*Frame, error) {
 		return nil, err
 	}
 
-	return &(Frame{buffer, f.FrameHeight, f.FrameWidth}), nil
+	return &Frame{buffer, f.FrameHeight, f.FrameWidth, 0}, nil
+}
+
+func (f *FFMPEGDecoder) Next() *Frame {
+	if !f.Opened {
+		return nil
+	}
+
+	return <-f.FrameBuffer
 }
 
 //GetRGB Get RGB as a point within a frame

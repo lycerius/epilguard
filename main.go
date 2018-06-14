@@ -2,20 +2,18 @@ package main
 
 import (
 	"log"
-	"time"
 
+	"github.com/epilguard/processors"
 	"github.com/epilguard/tools"
 )
 
 func main() {
-	decoder := tools.NewDecoder("/Users/longdog/Downloads/bbb_sunflower_1080p_60fps_stereo_abl.mp4")
-	err := decoder.Start()
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	for {
-		<-decoder.FrameBuffer
-		time.Sleep(1 * time.Second)
-	}
+	decoder := tools.NewDecoder("C:\\Users\\Nathan C. Purpura\\Downloads\\bbb_sunflower_1080p_60fps_stereo_abl.mp4")
+	decoder.FrameBufferSize = 2
+	decoder.Start()
+
+	processor := processors.NewFlashingProcessor(&decoder, "helloworld")
+
+	log.Fatal(processor.Process())
+
 }
