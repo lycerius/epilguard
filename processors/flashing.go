@@ -40,17 +40,17 @@ func NewFlashingProcessor(f *tools.FFMPEGDecoder, jobId string) FlashingProcesso
 func (f *FlashingProcessor) Process() error {
 	//frameDifferences := list.New()
 	lastFrame := RGBFrameToLuminance(f.decoder.Next())
-	pixelCountThreshold := int(float32(lastFrame.Height) * float32(lastFrame.Width) * f.AreaThreshold)
+	//pixelCountThreshold := int(float32(lastFrame.Height) * float32(lastFrame.Width) * f.AreaThreshold)
 	for {
 		//Get frame difference
 		nextFrame := RGBFrameToLuminance(f.decoder.Next())
-		difference := calculateFrameDifference(lastFrame, nextFrame)
+		/*difference := */ calculateFrameDifference(lastFrame, nextFrame)
 
 		//Generate positive and negative histos
-		var histoPos, histoNeg [255]int
+		//var histoPos, histoNeg [255]int
 
 		//frameDifferences.PushBack(difference)
-		lastFrame = nextFrame
+		//lastFrame = nextFrame
 
 		/*for k, v := range difference.negatives {
 			fmt.Println(k, ": ", v)
@@ -104,8 +104,8 @@ func calculateFrameDifference(f1, f2 LuminanceFrame) TransitionFrame {
 	}
 	frameDifference.Height = f1.Height
 	frameDifference.Width = f1.Width
-	frameDifference.positives = positives
-	frameDifference.negatives = negatives
+	//frameDifference.positives = positives
+	//frameDifference.negatives = negatives
 	frameDifference.Index = f2.Index
 	return frameDifference
 }
