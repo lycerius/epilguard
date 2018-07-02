@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/epilguard/tools"
+	"github.com/lycerius/epilguard/tools"
 	"github.com/stretchr/testify/assert"
 )
 
