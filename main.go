@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/epilguard/processors"
-	"github.com/epilguard/tools"
+	"github.com/lycerius/epilguard/processors"
+	"github.com/lycerius/epilguard/tools"
 )
 
 func main() {

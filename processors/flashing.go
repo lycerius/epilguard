@@ -3,7 +3,7 @@ package processors
 import (
 	"container/list"
 
-	"github.com/epilguard/tools"
+	"github.com/lycerius/epilguard/tools"
 )
 
 //FlashingProcessor Processes a video stream and detects flashing photosensitive content
