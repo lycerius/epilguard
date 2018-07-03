@@ -1,4 +1,4 @@
-package main
+package decoder
 
 import (
 	"testing"
@@ -16,7 +16,6 @@ func TestDecoderLoadsFileInfo(t *testing.T) {
 	decoder := tools.NewDecoder(smallVideoFile)
 
 	err := decoder.Start()
-
 	assert.NoError(err, "Decoder threw error on start")
 
 	assert.Equal(30, decoder.Fps)
@@ -72,7 +71,7 @@ func TestDecoderCanGetFrame(t *testing.T) {
 
 	assert.NoError(err, "Could not start decoder")
 
-	f := decoder.Next()
+	f, err := decoder.Next()
 
 	assert.NotNil(f, "Frame was nil")
 }
@@ -94,6 +93,15 @@ func TestDecoderCloses(t *testing.T) {
 	assert.Nil(decoder.FrameBuffer, "Frame buffer not nil")
 }
 
+func TestDecoderClosesInProcess(t *testing.T) {
+	assert := assert.New(t)
+	decoder := tools.NewDecoder(smallVideoFile)
+	err := decoder.Start()
+	assert.NoError(err, "Could not start decoder")
+	decoder.Next()
+	decoder.Close()
+}
+
 func TestDecoderFrameBuffer(t *testing.T) {
 	assert := assert.New(t)
 
@@ -104,4 +112,25 @@ func TestDecoderFrameBuffer(t *testing.T) {
 	assert.NoError(err, "Could not start decoder")
 	time.Sleep(1 * time.Second)
 	assert.Equal(decoder.FrameBufferSize, len(decoder.FrameBuffer))
+}
+
+func TestDecoderCanDecodeVideoToEnd(t *testing.T) {
+
+	assert := assert.New(t)
+
+	decoder := tools.NewDecoder(smallVideoFile)
+
+	err := decoder.Start()
+
+	assert.NoError(err, "Could not start decoder")
+
+	for {
+		frame, err := decoder.Next()
+		//fmt.Println(frame.Index)
+		if err != nil {
+			assert.EqualError(err, "EOF", "Error was not EOF")
+			return
+		}
+		frame.GetRGB(0, 0)
+	}
 }
