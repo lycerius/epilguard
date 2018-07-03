@@ -1,7 +1,7 @@
 package processors
 
 import (
-	"container/list"
+	"fmt"
 
 	"github.com/lycerius/epilguard/tools"
 )
@@ -14,24 +14,25 @@ type FlashingProcessor struct {
 	AreaThreshold float32
 }
 
-type LuminanceFrame struct {
+type brightnessFrame struct {
 	Index         uint
 	data          []int
 	Height, Width int
 }
 
-type TransitionFrame struct {
+type frameDifference struct {
 	Index         uint
 	Height, Width int
-	negatives     list.List
-	positives     list.List
+	negatives     map[int]int
+	positives     map[int]int
 }
 
-func NewFlashingProcessor(f *tools.FFMPEGDecoder, jobId string) FlashingProcessor {
+//NewFlashingProcessor creates a flashing processor
+func NewFlashingProcessor(f *tools.FFMPEGDecoder, jobID string) FlashingProcessor {
 	processor := FlashingProcessor{}
 
 	processor.decoder = f
-	processor.JobID = jobId
+	processor.JobID = jobID
 
 	return processor
 }
@@ -39,40 +40,41 @@ func NewFlashingProcessor(f *tools.FFMPEGDecoder, jobId string) FlashingProcesso
 //Process begins scanning the video for flashing photosensitive content
 func (f *FlashingProcessor) Process() error {
 	//frameDifferences := list.New()
-	lastFrame := RGBFrameToLuminance(f.decoder.Next())
+	frame, err := f.decoder.Next()
+
+	if err != nil {
+		return err
+	}
+
+	lastFrame := rGBFrameToLuminance(&frame)
+
 	//pixelCountThreshold := int(float32(lastFrame.Height) * float32(lastFrame.Width) * f.AreaThreshold)
 	for {
-		//Get frame difference
-		nextFrame := RGBFrameToLuminance(f.decoder.Next())
-		/*difference := */ calculateFrameDifference(lastFrame, nextFrame)
+		//Step 1: Compute frame difference
+		frame, err = f.decoder.Next()
 
-		//Generate positive and negative histos
-		//var histoPos, histoNeg [255]int
-
-		//frameDifferences.PushBack(difference)
-		//lastFrame = nextFrame
-
-		/*for k, v := range difference.negatives {
-			fmt.Println(k, ": ", v)
+		if err != nil {
+			if err.Error() == "EOF" {
+				break
+			}
+			return err
 		}
-		for k, v := range difference.positives {
-			fmt.Println(k, ": ", v)
-		}*/
 
+		nextFrame := rGBFrameToLuminance(&frame)
+
+		//Step 2: Generate hK+ and hK- of positive and negative differences
+		/*difference :=*/
+		calculateFrameDifference(lastFrame, nextFrame)
+		fmt.Println(nextFrame.Index)
+		lastFrame = nextFrame
 	}
-	//Step 1: Calculate Frame differences
 
-	//Step 2: Generate positive and negative histograms
-
-	//Step 3: Scan both histograms from right to left until you have percentage of pixels required for hazard id
-
-	//Step 4: Compute positive and negative averages
 	return nil
 }
 
-func RGBFrameToLuminance(frame *tools.Frame) LuminanceFrame {
+func rGBFrameToLuminance(frame *tools.Frame) brightnessFrame {
 
-	var lframe LuminanceFrame
+	var lframe brightnessFrame
 	lframe.Height = frame.Height
 	lframe.Width = frame.Width
 	size := frame.Height * frame.Width
@@ -90,22 +92,23 @@ func RGBFrameToLuminance(frame *tools.Frame) LuminanceFrame {
 	return lframe
 }
 
-func calculateFrameDifference(f1, f2 LuminanceFrame) TransitionFrame {
-	var frameDifference TransitionFrame
-	positives := list.New()
-	negatives := list.New()
+func calculateFrameDifference(f1, f2 brightnessFrame) frameDifference {
+	var frameDifference frameDifference
+	positives := make(map[int]int)
+	negatives := make(map[int]int)
+
 	for i := 0; i < f1.Height*f1.Width; i++ {
 		difference := f2.data[i] - f1.data[i]
 		if difference > 0 {
-			positives.PushBack(difference)
+			positives[difference]++
 		} else if difference < 0 {
-			negatives.PushBack(difference)
+			negatives[(-difference)]++
 		}
 	}
 	frameDifference.Height = f1.Height
 	frameDifference.Width = f1.Width
-	//frameDifference.positives = positives
-	//frameDifference.negatives = negatives
+	frameDifference.positives = positives
+	frameDifference.negatives = negatives
 	frameDifference.Index = f2.Index
 	return frameDifference
 }

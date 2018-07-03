@@ -1,4 +1,4 @@
-package decoder
+package test
 
 import (
 	"testing"
@@ -58,7 +58,7 @@ func TestDecoderOpens(t *testing.T) {
 
 	assert.NoError(err, "Could not start decoder")
 
-	assert.True(decoder.Opened, "Decoder reporting closed")
+	assert.True(decoder.IsOpen(), "Decoder reporting closed")
 }
 
 func TestDecoderCanGetFrame(t *testing.T) {
@@ -89,7 +89,7 @@ func TestDecoderCloses(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	assert.NoError(err, "Could not close decoder")
 
-	assert.False(decoder.Opened, "Decoder reported opened")
+	assert.False(decoder.IsOpen(), "Decoder reported opened")
 	assert.Nil(decoder.FrameBuffer, "Frame buffer not nil")
 }
 
