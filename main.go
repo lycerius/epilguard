@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/processors"
-	"github.com/lycerius/epilguard/tools"
 )
 
 func main() {
@@ -24,8 +24,8 @@ func main() {
 		log.Fatal("Could not open '", path, "', ", err)
 	}
 
-	decoder := tools.NewDecoder(path)
-	decoder.FrameBufferSize = 2
+	decoder := decoder.NewDecoder(path)
+	decoder.FrameBufferCacheSize = 2
 	decoder.Start()
 	processor := processors.NewFlashingProcessor(&decoder, "helloworld")
 	processor.Process()

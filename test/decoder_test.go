@@ -4,21 +4,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lycerius/epilguard/tools"
+	"github.com/lycerius/epilguard/decoder"
 	"github.com/stretchr/testify/assert"
 )
 
 const smallVideoFile = "./resources/vid.mp4"
 const video720pTest = "./resources/720pTest60fps.mp4"
 
+func createDecoderTestDecoder(file string) decoder.Decoder {
+	decoder := decoder.NewDecoder(file)
+
+	return decoder
+}
 func TestDecoderLoadsFileInfo(t *testing.T) {
 	assert := assert.New(t)
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 	assert.NoError(err, "Decoder threw error on start")
 
-	assert.Equal(30, decoder.Fps)
+	assert.Equal(30, decoder.FramesPerSecond)
 	assert.Equal(264, decoder.FrameHeight)
 	assert.Equal(480, decoder.FrameWidth)
 }
@@ -26,33 +31,33 @@ func TestDecoderLoadsFileInfo(t *testing.T) {
 func TestDecoderDoesntUpConvert(t *testing.T) {
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 
 	assert.NoError(err, "Could not start decoder")
 
-	assert.Equal(false, decoder.ConvertTo30FPS)
-	assert.Equal(false, decoder.ConvertTo480p)
+	assert.Equal(false, decoder.ConvertedTo30FPS)
+	assert.Equal(false, decoder.ConvertedTo480p)
 }
 
 func TestDecoderDownConverts(t *testing.T) {
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(video720pTest)
+	decoder := createDecoderTestDecoder(video720pTest)
 
 	err := decoder.Start()
 
 	assert.NoError(err, "Could not start decoder")
 
-	assert.True(decoder.ConvertTo30FPS, "Video is not converted to 30fps")
-	assert.True(decoder.ConvertTo480p, "Video is not converted to 480p")
+	assert.True(decoder.ConvertedTo30FPS, "Video is not converted to 30fps")
+	assert.True(decoder.ConvertedTo480p, "Video is not converted to 480p")
 }
 
 func TestDecoderOpens(t *testing.T) {
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 
@@ -65,13 +70,13 @@ func TestDecoderCanGetFrame(t *testing.T) {
 
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 
 	assert.NoError(err, "Could not start decoder")
 
-	f, err := decoder.Next()
+	f, err := decoder.NextFrame()
 
 	assert.NotNil(f, "Frame was nil")
 }
@@ -79,54 +84,41 @@ func TestDecoderCanGetFrame(t *testing.T) {
 func TestDecoderCloses(t *testing.T) {
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 
 	assert.NoError(err, "Could not start decoder")
 
-	err = decoder.Close()
+	decoder.Close()
 	time.Sleep(1 * time.Second)
 	assert.NoError(err, "Could not close decoder")
 
 	assert.False(decoder.IsOpen(), "Decoder reported opened")
-	assert.Nil(decoder.FrameBuffer, "Frame buffer not nil")
 }
 
 func TestDecoderClosesInProcess(t *testing.T) {
 	assert := assert.New(t)
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 	err := decoder.Start()
 	assert.NoError(err, "Could not start decoder")
-	decoder.Next()
+	decoder.NextFrame()
 	decoder.Close()
-}
-
-func TestDecoderFrameBuffer(t *testing.T) {
-	assert := assert.New(t)
-
-	decoder := tools.NewDecoder(smallVideoFile)
-
-	err := decoder.Start()
-
-	assert.NoError(err, "Could not start decoder")
-	time.Sleep(1 * time.Second)
-	assert.Equal(decoder.FrameBufferSize, len(decoder.FrameBuffer))
 }
 
 func TestDecoderCanDecodeVideoToEnd(t *testing.T) {
 
 	assert := assert.New(t)
 
-	decoder := tools.NewDecoder(smallVideoFile)
+	decoder := createDecoderTestDecoder(smallVideoFile)
 
 	err := decoder.Start()
 
 	assert.NoError(err, "Could not start decoder")
 
 	for {
-		frame, err := decoder.Next()
-		//fmt.Println(frame.Index)
+		frame, err := decoder.NextFrame()
+
 		if err != nil {
 			assert.EqualError(err, "EOF", "Error was not EOF")
 			return

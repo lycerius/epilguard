@@ -3,13 +3,13 @@ package test
 import (
 	"testing"
 
+	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/processors"
-	"github.com/lycerius/epilguard/tools"
 	"github.com/stretchr/testify/assert"
 )
 
-func createDecoder(file string) (tools.FFMPEGDecoder, error) {
-	decoder := tools.NewDecoder(file)
+func createDecoder(file string) (decoder.Decoder, error) {
+	decoder := decoder.NewDecoder(file)
 
 	return decoder, decoder.Start()
 }
@@ -44,4 +44,14 @@ func TestProcessorCanProcessSmallVideo(t *testing.T) {
 	err = proc.Process()
 
 	assert.NoError(err, "Error during processing")
+}
+
+func TestProcessorCanProcessLargeVideo(t *testing.T) {
+	assert := assert.New(t)
+
+	proc, err := createProcessor(video720pTest)
+
+	assert.NoError(err, "Error during initialization")
+
+	err = proc.Process()
 }
