@@ -2,7 +2,6 @@ package processors
 
 import (
 	"container/list"
-	"fmt"
 
 	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/equations"
@@ -30,6 +29,16 @@ type frameDifference struct {
 	MaxPos, MaxNeg int
 }
 
+type luminanceEvolutionTable = *list.List
+
+type luminanceEvolution struct {
+	index                         uint
+	lumMagnitude, lumAccumulation int
+}
+type luminanceExtreme struct {
+	magnitude, frameCount int
+}
+
 //NewFlashingProcessor creates a flashing processor
 func NewFlashingProcessor(f *decoder.Decoder, jobID string) FlashingProcessor {
 	processor := FlashingProcessor{}
@@ -42,64 +51,55 @@ func NewFlashingProcessor(f *decoder.Decoder, jobID string) FlashingProcessor {
 
 //Process begins scanning the video for flashing photosensitive content
 func (proc *FlashingProcessor) Process() error {
+	evolution, err := createLuminanceEvolutionTable(proc.decoder)
 
-	frame, err := proc.decoder.NextFrame()
+}
+
+func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolutionTable, error) {
+	luminanceEvolutionTable := list.New()
+	frame, err := decoder.NextFrame()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	frameDifferences := list.New()
-	accFrameDifferences := list.New()
-	accLuminance := 0
-	lFrame := rGBFrameToLuminance(&frame)
-	lastFrame := &lFrame
+	var accLuminance int
+	lumFrame := rGBFrameToLuminance(&frame)
+	lastFrame := &lumFrame
 
-	//pixelCountThreshold := int(float32(lastFrame.Height) * float32(lastFrame.Width) * equations.PercentageFlashArea)
 	for {
-		//Step 1: Compute frame difference
-		frame, err = proc.decoder.NextFrame()
+		frame, err := decoder.NextFrame()
 
 		if err != nil {
 			if err.Error() == "EOF" {
 				break
+			} else {
+				return nil, err
 			}
-			return err
 		}
 
-		nextFrame := rGBFrameToLuminance(&frame)
+		lumFrame = rGBFrameToLuminance(&frame)
+		difference := calculateFrameDifference(lastFrame, &lumFrame)
+		averageLuminance := findAverageLuminance(difference)
 
-		//Step 2: Generate hK+ and hK- of positive and negative differences
-		difference := calculateFrameDifference(*lastFrame, nextFrame)
-
-		//Step 3: Scan from right to left, filling bins until the number of elements
-		//Equals tha area neeeded for flashing content (pixelCountThreshold)
-
-		luminanceDifference := findAverageLuminance(difference)
-
-		//Signs are the same? accumulate
-		if (accLuminance < 0) == (luminanceDifference < 0) {
-			accLuminance += luminanceDifference
-		} else { //Reset
-			accLuminance = luminanceDifference
+		//Check if signs are different
+		if (accLuminance < 0) == (averageLuminance < 0) {
+			accLuminance += averageLuminance
+		} else {
+			accLuminance = averageLuminance
 		}
 
-		frameDifferences.PushBack(luminanceDifference)
-		accFrameDifferences.PushBack(accLuminance)
-		//fmt.Println(nextFrame.Index)
-		lastFrame = &nextFrame
+		lastFrame = &lumFrame
+
+		var evolution luminanceEvolution
+		evolution.index = frame.Index
+		evolution.lumAccumulation = accLuminance
+		evolution.lumMagnitude = averageLuminance
+
+		luminanceEvolutionTable.PushBack(evolution)
 	}
 
-	index := 1
-	fmt.Println("Index\tLuminance\taccLuminance")
-	acc := accFrameDifferences.Front()
-	for ele := frameDifferences.Front(); ele != nil; ele = ele.Next() {
-		val := ele.Value.(int)
-		fmt.Println(index, "\t", val, "\t\t", acc.Value.(int))
-		index++
-		acc = acc.Next()
-	}
-	return nil
+	return luminanceEvolutionTable, nil
 }
 
 //In the future, we may want to parallize this
@@ -123,7 +123,7 @@ func rGBFrameToLuminance(frame *decoder.Frame) brightnessFrame {
 	return lframe
 }
 
-func calculateFrameDifference(f1, f2 brightnessFrame) frameDifference {
+func calculateFrameDifference(f1, f2 *brightnessFrame) frameDifference {
 	var frameDifference frameDifference
 	var maxpos, maxneg int
 	positives := make(map[int]int)
@@ -201,4 +201,8 @@ func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLumin
 	averageDifference = numerator / denominator
 
 	return averageDifference
+}
+
+func createLocalExtremesTable(lumAcc list.List) list.List {
+
 }
