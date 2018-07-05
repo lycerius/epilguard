@@ -221,7 +221,17 @@ func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTa
 	localMaxima := (lumAcc.Front().Value.(luminanceEvolution)).lumAccumulation
 	var amountOfFrames int
 
-	for lum := lumAcc.Front(); lum != nil; lum = lum.Next() {
+	lum := lumAcc.Front()
+
+	for {
+		if lum == nil {
+			var extreme luminanceExtreme
+			extreme.frameCount = amountOfFrames
+			extreme.magnitude = localMaxima
+			luminanceExtremes.PushBack(extreme)
+			break
+		}
+
 		evolution := lum.Value.(luminanceEvolution)
 
 		lumVal := evolution.lumAccumulation
@@ -236,9 +246,17 @@ func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTa
 			extreme.frameCount = amountOfFrames
 			extreme.magnitude = localMaxima
 			luminanceExtremes.PushBack(extreme)
-			amountOfFrames = 0
-			localMaxima = (lum.Next().Value.(luminanceEvolution)).lumAccumulation
+			amountOfFrames = 1
+			localMaxima = lumVal
 		}
+
+		lum = lum.Next()
+	}
+
+	sum := 0
+	for ele := luminanceExtremes.Front(); ele != nil; ele = ele.Next() {
+		val := ele.Value.(luminanceExtreme)
+		sum += val.frameCount
 	}
 
 	return luminanceExtremes
