@@ -3,16 +3,18 @@ package processors
 import (
 	"container/list"
 	"math"
+	"time"
 
 	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/equations"
+	"github.com/lycerius/epilguard/hazards"
 )
 
 //FlashingProcessor Processes a video stream and detects flashing photosensitive content
 type FlashingProcessor struct {
-	decoder       *decoder.Decoder //Decoder to fetch frames from
-	JobID         string           //The job assosiated with this request
-	HazardReport  HazardReport     //Generated hazard report
+	decoder       *decoder.Decoder     //Decoder to fetch frames from
+	JobID         string               //The job assosiated with this request
+	HazardReport  hazards.HazardReport //Generated hazard report
 	AreaThreshold float32
 }
 
@@ -62,7 +64,10 @@ func (proc *FlashingProcessor) Process() error {
 
 	extremes := createLocalExtremesTable(evolution)
 
-	createHazardReport(extremes, proc.decoder.FramesPerSecond)
+	report := createHazardReport(extremes, proc.decoder.FramesPerSecond)
+
+	report.JobID = proc.JobID
+	report.CreatedOn = time.Now()
 
 	return nil
 }
@@ -244,8 +249,8 @@ func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTa
 	return luminanceExtremes
 }
 
-func createHazardReport(let luminanceExtremeTable, fps int) HazardReport {
-	var hazardReport HazardReport
+func createHazardReport(let luminanceExtremeTable, fps int) hazards.HazardReport {
+	var hazardReport hazards.HazardReport
 	//3 Flashes per second threshold
 	flashesPerSecondThreshold := 3
 	frameCounter := 0
@@ -266,7 +271,7 @@ func createHazardReport(let luminanceExtremeTable, fps int) HazardReport {
 		}
 
 		if countedFlashes == flashesPerSecondThreshold {
-			var hazard Hazard
+			var hazard hazards.Hazard
 			hazard.Start = uint(flashStartIndex / fps)
 			hazard.End = uint(accFrames / fps)
 			hazard.HazardType = "Flashing"
