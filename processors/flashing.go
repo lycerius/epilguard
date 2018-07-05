@@ -2,6 +2,7 @@ package processors
 
 import (
 	"container/list"
+	"math"
 
 	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/equations"
@@ -35,6 +36,8 @@ type luminanceEvolution struct {
 	index                         uint
 	lumMagnitude, lumAccumulation int
 }
+
+type luminanceExtremeTable = *list.List
 type luminanceExtreme struct {
 	magnitude, frameCount int
 }
@@ -53,6 +56,15 @@ func NewFlashingProcessor(f *decoder.Decoder, jobID string) FlashingProcessor {
 func (proc *FlashingProcessor) Process() error {
 	evolution, err := createLuminanceEvolutionTable(proc.decoder)
 
+	if err != nil {
+		return err
+	}
+
+	extremes := createLocalExtremesTable(evolution)
+
+	createHazardReport(extremes, proc.decoder.FramesPerSecond)
+
+	return nil
 }
 
 func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolutionTable, error) {
@@ -64,8 +76,8 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 	}
 
 	var accLuminance int
-	lumFrame := rGBFrameToLuminance(&frame)
-	lastFrame := &lumFrame
+	firstFrame := rGBFrameToLuminance(frame)
+	lastFrame := &firstFrame
 
 	for {
 		frame, err := decoder.NextFrame()
@@ -78,8 +90,8 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 			}
 		}
 
-		lumFrame = rGBFrameToLuminance(&frame)
-		difference := calculateFrameDifference(lastFrame, &lumFrame)
+		lumFrame := rGBFrameToLuminance(frame)
+		difference := calculateFrameDifference(*lastFrame, lumFrame)
 		averageLuminance := findAverageLuminance(difference)
 
 		//Check if signs are different
@@ -103,7 +115,7 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 }
 
 //In the future, we may want to parallize this
-func rGBFrameToLuminance(frame *decoder.Frame) brightnessFrame {
+func rGBFrameToLuminance(frame decoder.Frame) brightnessFrame {
 
 	var lframe brightnessFrame
 	lframe.Height = frame.Height
@@ -123,7 +135,7 @@ func rGBFrameToLuminance(frame *decoder.Frame) brightnessFrame {
 	return lframe
 }
 
-func calculateFrameDifference(f1, f2 *brightnessFrame) frameDifference {
+func calculateFrameDifference(f1, f2 brightnessFrame) frameDifference {
 	var frameDifference frameDifference
 	var maxpos, maxneg int
 	positives := make(map[int]int)
@@ -203,6 +215,80 @@ func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLumin
 	return averageDifference
 }
 
-func createLocalExtremesTable(lumAcc list.List) list.List {
+func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTable {
+	luminanceExtremes := list.New()
 
+	localMaxima := (lumAcc.Front().Value.(luminanceEvolution)).lumAccumulation
+	var amountOfFrames int
+
+	for lum := lumAcc.Front(); lum != nil; lum = lum.Next() {
+		evolution := lum.Value.(luminanceEvolution)
+
+		lumVal := evolution.lumAccumulation
+
+		if (lumVal < 0) == (localMaxima < 0) {
+			amountOfFrames++
+			if math.Abs(float64(localMaxima)) < math.Abs(float64(lumVal)) {
+				localMaxima = lumVal
+			}
+		} else {
+			var extreme luminanceExtreme
+			extreme.frameCount = amountOfFrames
+			extreme.magnitude = localMaxima
+			luminanceExtremes.PushBack(extreme)
+			amountOfFrames = 0
+			localMaxima = (lum.Next().Value.(luminanceEvolution)).lumAccumulation
+		}
+	}
+
+	return luminanceExtremes
+}
+
+func createHazardReport(let luminanceExtremeTable, fps int) HazardReport {
+	var hazardReport HazardReport
+	//3 Flashes per second threshold
+	flashesPerSecondThreshold := 3
+	frameCounter := 0
+	countedFlashes := 0
+	accFrames := 0
+	flashStartIndex := 0
+	lastElementLuminance := int(math.Abs((float64((let.Front().Value.(luminanceExtreme)).magnitude))))
+
+	for extreme := let.Front(); extreme != nil; extreme = extreme.Next() {
+
+		val := extreme.Value.(luminanceExtreme)
+
+		frameCounter += val.frameCount
+		accFrames += val.frameCount
+
+		if (val.magnitude - lastElementLuminance) >= 20 {
+			countedFlashes++
+		}
+
+		if countedFlashes == flashesPerSecondThreshold {
+			var hazard Hazard
+			hazard.Start = uint(flashStartIndex / fps)
+			hazard.End = uint(accFrames / fps)
+			hazard.HazardType = "Flashing"
+
+			hazardReport.Hazards.PushBack(hazard)
+
+			countedFlashes = 0
+			frameCounter = 0
+			flashStartIndex = accFrames
+			continue
+		}
+
+		if frameCounter > fps {
+			countedFlashes = 0
+			frameCounter = 0
+			flashStartIndex = accFrames
+			continue
+		}
+
+		lastElementLuminance = int(math.Abs(float64(val.magnitude)))
+		//We have found a violation
+	}
+	//FIXME: Frame drops some point along the stack (181 for small when should be 221)
+	return hazardReport
 }

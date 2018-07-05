@@ -1,12 +1,17 @@
 package processors
 
-import "time"
+import (
+	"container/list"
+	"time"
+)
+
+type HazardList = list.List
 
 //HazardReport collection of hazards found during an analysis for a job
 type HazardReport struct {
 	JobID   string
 	Date    time.Time
-	Hazards []Hazard
+	Hazards HazardList
 }
 
 //Hazard describes hazardous content that is found in a video
