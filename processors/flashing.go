@@ -114,6 +114,9 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 		evolution.lumAccumulation = accLuminance
 		evolution.lumMagnitude = averageLuminance
 
+		if frame.Index%(24695/100) == 0 {
+			fmt.Println(frame.Index)
+		}
 		luminanceEvolutionTable.PushBack(evolution)
 	}
 
@@ -259,64 +262,110 @@ func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTa
 		lum = lum.Next()
 	}
 
-	sum := 0
-	for ele := luminanceExtremes.Front(); ele != nil; ele = ele.Next() {
-		val := ele.Value.(luminanceExtreme)
-		sum += val.frameCount
-
-		fmt.Println(val.frameCount, "\t", val.magnitude)
-	}
-
 	return luminanceExtremes
 }
 
-func createHazardReport(let luminanceExtremeTable, fps int) hazards.HazardReport {
+func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.HazardReport {
 	var hazardReport hazards.HazardReport
-	//3 Flashes per second threshold
+
 	flashesPerSecondThreshold := 3
 	frameCounter := 0
 	countedFlashes := 0
-	accFrames := 0
-	flashStartIndex := 0
-	lastElementLuminance := int(math.Abs((float64((let.Front().Value.(luminanceExtreme)).magnitude))))
+	currentFrameIndex := 0
+	flashStartIndex := -1
+	previousLuminance := (lumExtTab.Front().Value.(luminanceExtreme)).magnitude
 
-	for extreme := let.Front(); extreme != nil; extreme = extreme.Next() {
+	for lumExtremeElement := lumExtTab.Front(); lumExtremeElement != nil; lumExtremeElement = lumExtremeElement.Next() {
 
-		val := extreme.Value.(luminanceExtreme)
+		lumExtreme := lumExtremeElement.Value.(luminanceExtreme)
 
-		frameCounter += val.frameCount
-		accFrames += val.frameCount
+		currentFrameIndex += lumExtreme.frameCount
+		previousLuminanceAbs := int(math.Abs(float64(previousLuminance)))
+		currentLuminance := lumExtreme.magnitude
+		currentLuminanceAbs := int(math.Abs(float64(currentLuminance)))
 
-		if (int(math.Abs(float64(val.magnitude))) - lastElementLuminance) >= 20 {
+		var darkerLuminance int
+		if previousLuminance < 0 {
+			darkerLuminance = previousLuminanceAbs
+		} else {
+			darkerLuminance = currentLuminanceAbs
+		}
+
+		//Has to be a difference of 20 or more candellas, and darker frame must be below 160
+		if (currentLuminanceAbs-previousLuminanceAbs) > 20 && darkerLuminance < 160 {
+			if flashStartIndex == -1 {
+				//Start detecting flashes
+				flashStartIndex = currentFrameIndex
+			}
 			countedFlashes++
 		}
 
-		if countedFlashes == flashesPerSecondThreshold {
-			var hazard hazards.Hazard
-			hazard.Start = uint(flashStartIndex / fps)
-			hazard.End = uint(accFrames / fps)
-			hazard.HazardType = "Flashing"
-
-			hazardReport.Hazards.PushBack(hazard)
-
-			countedFlashes = 0
-			frameCounter = 0
-			flashStartIndex = accFrames
-			continue
+		//We are currently checking for flashes
+		if flashStartIndex != -1 {
+			frameCounter += lumExtreme.frameCount
 		}
 
-		if frameCounter > fps {
-			countedFlashes = 0
+		//We have surpassed 1 second after checking for flashes, check to see if we need to make a report
+		if frameCounter >= fps || lumExtremeElement.Next() == nil {
+
+			//Crossed threshold
+			if countedFlashes >= flashesPerSecondThreshold {
+				var hazard hazards.Hazard
+				hazard.Start = uint(float64(flashStartIndex) / float64(fps))
+				hazard.End = uint(float64(currentFrameIndex) / float64(fps))
+				hazard.HazardType = "Flash"
+				hazardReport.Hazards.PushBack(hazard)
+			}
+
+			//Reset
+			flashStartIndex = -1
 			frameCounter = 0
-			flashStartIndex = accFrames
-			continue
+			countedFlashes = 0
 		}
 
-		lastElementLuminance = int(math.Abs(float64(val.magnitude)))
-		//We have found a violation
+		previousLuminance = currentLuminance
 	}
-	//FIXME: Frame drops some point along the stack (181 for small when should be 221)
+
+	hazardReport.Hazards = consolidateHazardList(hazardReport.Hazards)
+
+	for ele := hazardReport.Hazards.Front(); ele != nil; ele = ele.Next() {
+		v := ele.Value.(hazards.Hazard)
+
+		fmt.Println(v.Start, "\t", v.End)
+	}
+
 	return hazardReport
 }
 
-func 
+func consolidateHazardList(li hazards.HazardList) hazards.HazardList {
+
+	if (li.Front()) == nil {
+		return li
+	}
+
+	var consolidated hazards.HazardList
+
+	ele := li.Front()
+	val := ele.Value.(hazards.Hazard)
+
+	var temp hazards.Hazard
+	temp.Start = val.Start
+	temp.End = val.End
+	temp.HazardType = val.HazardType
+
+	for ele = ele.Next(); ele != nil; ele = ele.Next() {
+		val = ele.Value.(hazards.Hazard)
+
+		if val.Start == temp.End {
+			temp.End = val.End
+		} else {
+			consolidated.PushBack(temp)
+			temp = hazards.Hazard{}
+			temp.Start = val.Start
+			temp.End = val.End
+			temp.HazardType = val.HazardType
+		}
+	}
+	consolidated.PushBack(temp)
+	return consolidated
+}

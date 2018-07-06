@@ -9,6 +9,7 @@ import (
 )
 
 const porygon = "./resources/porygon.mp4"
+const h3h3 = "./resources/h3h3.mp4"
 
 func createDecoder(file string) (decoder.Decoder, error) {
 	decoder := decoder.NewDecoder(file)
@@ -62,6 +63,16 @@ func TestProcessorFailsPorygon(t *testing.T) {
 	assert := assert.New(t)
 
 	proc, err := createProcessor(porygon)
+
+	assert.NoError(err, "Error during initialization")
+
+	err = proc.Process()
+}
+
+func TestProcessorFailsH3H3(t *testing.T) {
+	assert := assert.New(t)
+
+	proc, err := createProcessor(h3h3)
 
 	assert.NoError(err, "Error during initialization")
 
