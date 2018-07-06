@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const porygon = "./resources/porygon.mp4"
+
 func createDecoder(file string) (decoder.Decoder, error) {
 	decoder := decoder.NewDecoder(file)
 
@@ -50,6 +52,16 @@ func TestProcessorCanProcessLargeVideo(t *testing.T) {
 	assert := assert.New(t)
 
 	proc, err := createProcessor(video720pTest)
+
+	assert.NoError(err, "Error during initialization")
+
+	err = proc.Process()
+}
+
+func TestProcessorFailsPorygon(t *testing.T) {
+	assert := assert.New(t)
+
+	proc, err := createProcessor(porygon)
 
 	assert.NoError(err, "Error during initialization")
 

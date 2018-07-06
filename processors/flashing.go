@@ -2,6 +2,7 @@ package processors
 
 import (
 	"container/list"
+	"fmt"
 	"math"
 	"time"
 
@@ -215,7 +216,7 @@ func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLumin
 	if denominator == 0 {
 		denominator = 1
 	}
-	averageDifference = numerator / denominator
+	averageDifference = numerator / elementsRequired
 
 	return averageDifference
 }
@@ -262,6 +263,8 @@ func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTa
 	for ele := luminanceExtremes.Front(); ele != nil; ele = ele.Next() {
 		val := ele.Value.(luminanceExtreme)
 		sum += val.frameCount
+
+		fmt.Println(val.frameCount, "\t", val.magnitude)
 	}
 
 	return luminanceExtremes
@@ -284,7 +287,7 @@ func createHazardReport(let luminanceExtremeTable, fps int) hazards.HazardReport
 		frameCounter += val.frameCount
 		accFrames += val.frameCount
 
-		if (val.magnitude - lastElementLuminance) >= 20 {
+		if (int(math.Abs(float64(val.magnitude))) - lastElementLuminance) >= 20 {
 			countedFlashes++
 		}
 
@@ -315,3 +318,5 @@ func createHazardReport(let luminanceExtremeTable, fps int) hazards.HazardReport
 	//FIXME: Frame drops some point along the stack (181 for small when should be 221)
 	return hazardReport
 }
+
+func 
