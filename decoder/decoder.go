@@ -294,6 +294,7 @@ func getVideoStreamHeightFps(stderr io.ReadCloser) (int, int, int, error) {
 		}
 	}
 
+	stderr.Close()
 	return height, width, fps, nil
 }
 
