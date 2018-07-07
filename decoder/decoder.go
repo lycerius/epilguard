@@ -164,6 +164,7 @@ func cacheFrameBuffer(f *Decoder) {
 
 		} else {
 			f.opened = false
+			break
 		}
 	}
 	f.caching = false
@@ -292,6 +293,7 @@ func getVideoStreamHeightFps(stderr io.ReadCloser) (int, int, int, error) {
 		}
 	}
 
+	stderr.Close()
 	return height, width, fps, nil
 }
 
