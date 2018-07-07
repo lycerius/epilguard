@@ -94,6 +94,7 @@ func (f *Decoder) Start() error {
 	err = ffmpegProcess.Start()
 
 	height, width, fps, err := getVideoStreamHeightFps(stderr)
+	stderr.Close()
 
 	if err != nil {
 		return err
@@ -164,6 +165,7 @@ func cacheFrameBuffer(f *Decoder) {
 
 		} else {
 			f.opened = false
+			break
 		}
 	}
 	f.caching = false
