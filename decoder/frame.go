@@ -1,6 +1,6 @@
 package decoder
 
-//Frame 2D Image Frame with colors in z axis
+//Frame 2D Image Frame
 type Frame struct {
 	raw           []byte //Frame container
 	Height, Width int    //Height and Width for the current frame
@@ -12,6 +12,7 @@ type Pixel struct {
 	Red, Green, Blue int
 }
 
+//GetRGB 0Returns the Pixel at x,y in a frame
 func (f *Frame) GetRGB(x, y int) Pixel {
 	//Every pixel is reperesented by 3 bytes, each in the RGB spectrum
 	position := y*f.Width + x*3

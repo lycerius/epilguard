@@ -2,7 +2,6 @@ package processors
 
 import (
 	"container/list"
-	"fmt"
 	"math"
 	"time"
 
@@ -114,9 +113,6 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 		evolution.lumAccumulation = accLuminance
 		evolution.lumMagnitude = averageLuminance
 
-		if frame.Index%(24695/100) == 0 {
-			fmt.Println(frame.Index)
-		}
 		luminanceEvolutionTable.PushBack(evolution)
 	}
 
@@ -327,12 +323,6 @@ func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.Hazard
 	}
 
 	hazardReport.Hazards = consolidateHazardList(hazardReport.Hazards)
-
-	for ele := hazardReport.Hazards.Front(); ele != nil; ele = ele.Next() {
-		v := ele.Value.(hazards.Hazard)
-
-		fmt.Println(v.Start, "\t", v.End)
-	}
 
 	return hazardReport
 }
