@@ -2,11 +2,12 @@ package hazards
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"net/http"
 )
 
-const reportServerUri = "http://localhost:5001/hazards"
+const reportServerUri = "https://localhost:5001/hazards"
 
 //UploadHazardReport sends the hazard report to the server
 func UploadHazardReport(report HazardReport) error {
@@ -17,7 +18,13 @@ func UploadHazardReport(report HazardReport) error {
 	}
 
 	reader := bytes.NewReader(json)
-	resp, err := http.Post(reportServerUri, "application/json", reader)
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Post(reportServerUri, "application/json", reader)
 
 	if err != nil {
 		return err
