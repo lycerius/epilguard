@@ -3,6 +3,8 @@ package test
 import (
 	"testing"
 
+	"github.com/lycerius/epilguard/hazards"
+
 	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/processors"
 	"github.com/stretchr/testify/assert"
@@ -77,4 +79,20 @@ func TestProcessorFailsH3H3(t *testing.T) {
 	assert.NoError(err, "Error during initialization")
 
 	err = proc.Process()
+}
+
+func TestUploadResult(t *testing.T) {
+	assert := assert.New(t)
+
+	proc, err := createProcessor(smallVideoFile)
+
+	assert.NoError(err, "Error during initialization")
+
+	err = proc.Process()
+
+	assert.NoError(err, "Error occured during processing")
+	report := proc.HazardReport
+
+	hazards.UploadHazardReport(report)
+
 }

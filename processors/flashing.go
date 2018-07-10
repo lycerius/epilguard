@@ -69,6 +69,8 @@ func (proc *FlashingProcessor) Process() error {
 	report.JobID = proc.JobID
 	report.CreatedOn = time.Now()
 
+	proc.HazardReport = report
+
 	return nil
 }
 
