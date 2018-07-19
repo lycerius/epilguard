@@ -101,8 +101,8 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 		difference := calculateFrameDifference(*lastFrame, lumFrame)
 		averageLuminance := findAverageLuminance(difference)
 
-		//Check if signs are different
-		if (accLuminance < 0) == (averageLuminance < 0) {
+		//Check if signs are different and no 0 value
+		if (accLuminance < 0) == (averageLuminance < 0) || averageLuminance == 0 {
 			accLuminance += averageLuminance
 		} else {
 			accLuminance = averageLuminance
@@ -196,7 +196,7 @@ func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLumin
 
 	elementsScanned := 0
 	numerator, denominator := 0, 0
-	for lumMagnitude := maxLuminance; lumMagnitude >= 0 && elementsScanned != elementsRequired; lumMagnitude-- {
+	for lumMagnitude := maxLuminance; lumMagnitude > 0 && elementsScanned < elementsRequired; lumMagnitude-- {
 		numberOfPixels, pixelsWithLum := histogram[lumMagnitude]
 
 		if !pixelsWithLum {
@@ -205,13 +205,17 @@ func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLumin
 
 		//If we would go over, just take enough elements to satisfy the requirement
 		if numberOfPixels+elementsScanned > elementsRequired {
-			numberOfPixels = numberOfPixels - elementsRequired
+			numberOfPixels = elementsRequired - elementsScanned
 		}
 
 		numerator += numberOfPixels * lumMagnitude
 		denominator += numberOfPixels
 
 		elementsScanned += numberOfPixels
+	}
+
+	if elementsScanned < elementsRequired {
+		return 0
 	}
 
 	if denominator == 0 {
@@ -272,7 +276,6 @@ func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.Hazard
 	currentFrameIndex := 0
 	flashStartIndex := -1
 	previousLuminance := (lumExtTab.Front().Value.(luminanceExtreme)).magnitude
-
 	for lumExtremeElement := lumExtTab.Front(); lumExtremeElement != nil; lumExtremeElement = lumExtremeElement.Next() {
 
 		lumExtreme := lumExtremeElement.Value.(luminanceExtreme)
@@ -289,18 +292,18 @@ func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.Hazard
 			darkerLuminance = currentLuminanceAbs
 		}
 
+		//We are currently checking for flashes
+		if flashStartIndex != -1 {
+			frameCounter += lumExtreme.frameCount
+		}
+
 		//Has to be a difference of 20 or more candellas, and darker frame must be below 160
-		if (currentLuminanceAbs-previousLuminanceAbs) > 20 && darkerLuminance < 160 {
+		if math.Abs(float64(currentLuminance-previousLuminance)) > 20 && darkerLuminance < 160 {
 			if flashStartIndex == -1 {
 				//Start detecting flashes
 				flashStartIndex = currentFrameIndex
 			}
 			countedFlashes++
-		}
-
-		//We are currently checking for flashes
-		if flashStartIndex != -1 {
-			frameCounter += lumExtreme.frameCount
 		}
 
 		//We have surpassed 1 second after checking for flashes, check to see if we need to make a report
