@@ -47,11 +47,11 @@ type Decoder struct {
 
 //NewDecoder Creates a new video decoder for the given file
 func NewDecoder(fileName string) Decoder {
-	var fvs Decoder
-	fvs.FileName = fileName
-	fvs.cmdString = _FFMPEGArgs
-	fvs.FrameBufferCacheSize = _FrameBufferDefaultSize
-	return fvs
+	var decoder Decoder
+	decoder.FileName = fileName
+	decoder.cmdString = _FFMPEGArgs
+	decoder.FrameBufferCacheSize = _FrameBufferDefaultSize
+	return decoder
 }
 
 //Start opens the stream and begins decoding the video
@@ -67,7 +67,7 @@ func (f *Decoder) Start() error {
 		return err
 	}
 
-	fileWidth, fileFps, err := getVideoFileHeightFps(f.FileName)
+	fileWidth, fileFps, err := probeFileInformation(f.FileName)
 
 	if err != nil {
 		return err
@@ -76,11 +76,11 @@ func (f *Decoder) Start() error {
 	f.ConvertedTo30FPS = fileFps > 30
 	f.ConvertedTo480p = fileWidth > 480
 
-	arguments := createArguments(f.FileName, f.ConvertedTo30FPS, f.ConvertedTo480p)
+	arguments := createFFMPegArguments(f.FileName, f.ConvertedTo30FPS, f.ConvertedTo480p)
 
 	ffmpegProcess := exec.Command(_FFMPEGCommand, arguments...)
 	f.ffmpegProcess = ffmpegProcess
-	//Link Stdout
+
 	stdout, err := ffmpegProcess.StdoutPipe()
 	if err != nil {
 		return err
@@ -92,9 +92,15 @@ func (f *Decoder) Start() error {
 	}
 
 	err = ffmpegProcess.Start()
+	if err != nil {
+		return err
+	}
 
-	height, width, fps, err := getVideoStreamHeightFps(stderr)
+	height, width, fps, err := probeStreamInfo(stderr)
 	stderr.Close()
+	if err != nil {
+		return err
+	}
 
 	if err != nil {
 		return err
@@ -184,7 +190,7 @@ func (f *Decoder) nextSourceFrame() (Frame, error) {
 		return frame, err
 	}
 
-	frame.raw = buffer
+	frame.pixels = buffer
 	frame.Width = f.FrameWidth
 	frame.Height = f.FrameHeight
 	frame.Index = 0
@@ -198,7 +204,7 @@ func (f *Decoder) finalize() {
 	f.decoderOpened = false
 }
 
-func createArguments(fileName string, fps30, conv480p bool) []string {
+func createFFMPegArguments(fileName string, fps30, conv480p bool) []string {
 	args := strings.Split(_FFMPEGArgs, " ")
 
 	args[1] = fileName
@@ -220,8 +226,8 @@ func createArguments(fileName string, fps30, conv480p bool) []string {
 	return fullargs
 }
 
-//getVideoFileHeightFps retrieves the hieght, width, and fps from a video file
-func getVideoFileHeightFps(fileLocation string) (int, int, error) {
+//probeFileInformation retrieves the hieght, width, and fps from a video file
+func probeFileInformation(fileLocation string) (int, int, error) {
 	var width, fps int
 	args := strings.Split(_FFProbeArgs, " ")
 	args[0] = fileLocation
@@ -258,7 +264,7 @@ func getVideoFileHeightFps(fileLocation string) (int, int, error) {
 	return width, fps, nil
 }
 
-func getVideoStreamHeightFps(stderr io.ReadCloser) (int, int, int, error) {
+func probeStreamInfo(stderr io.ReadCloser) (int, int, int, error) {
 	height, width, fps := -1, -1, -1
 
 	reader := bufio.NewReader(stderr)
