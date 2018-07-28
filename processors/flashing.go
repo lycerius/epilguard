@@ -18,35 +18,39 @@ type FlashingProcessor struct {
 	AreaThreshold float32
 }
 
+//brightnessFrame Describes the pixel brightness transition between two frames
 type brightnessFrame struct {
 	Index         uint
-	Data          []int
+	Pixels        []int
 	Height, Width int
 }
 
-type frameDifference struct {
-	Index          uint
-	Height, Width  int
-	Negatives      map[int]int
-	Positives      map[int]int
-	MaxPos, MaxNeg int
+//frameBrightnessDelta is like brightnessFrame, but the pixels are organized into positive/negative bins
+type frameBrightnessDelta struct {
+	Index                          uint
+	Height, Width                  int
+	NegativePixels, PositivePixels map[int]int
+	MaxPos, MaxNeg                 int
 }
 
-type luminanceEvolutionTable = *list.List
+type brightnessAccumulationTable = *list.List
 
-type luminanceEvolution struct {
-	index                         uint
-	lumMagnitude, lumAccumulation int
+//brightnessAccumulation holds the average brightness and the total accumulation over time
+type brightnessAccumulation struct {
+	Index                    uint
+	Brightness, Accumulation int
 }
 
-type luminanceExtremeTable = *list.List
-type luminanceExtreme struct {
-	magnitude, frameCount int
+type flashTable = *list.List
+
+//flash describes the maximum brightness achieved over a set of frames before an inversion
+type flash struct {
+	brightness, frames int
 }
 
 //NewFlashingProcessor creates a flashing processor
 func NewFlashingProcessor(f *decoder.Decoder, jobID string) FlashingProcessor {
-	processor := FlashingProcessor{}
+	var processor FlashingProcessor
 
 	processor.decoder = f
 	processor.JobID = jobID
@@ -56,15 +60,15 @@ func NewFlashingProcessor(f *decoder.Decoder, jobID string) FlashingProcessor {
 
 //Process begins scanning the video for flashing photosensitive content
 func (proc *FlashingProcessor) Process() error {
-	evolution, err := createLuminanceEvolutionTable(proc.decoder)
+	brightnessAcc, err := createBrightnessAccumulationTable(proc.decoder)
 
 	if err != nil {
 		return err
 	}
 
-	extremes := createLocalExtremesTable(evolution)
+	flashes := createFlashTable(brightnessAcc)
 
-	report := createHazardReport(extremes, proc.decoder.FramesPerSecond)
+	report := createHazardReport(flashes, proc.decoder.FramesPerSecond)
 
 	report.JobID = proc.JobID
 	report.CreatedOn = time.Now()
@@ -74,16 +78,16 @@ func (proc *FlashingProcessor) Process() error {
 	return nil
 }
 
-func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolutionTable, error) {
-	luminanceEvolutionTable := list.New()
+func createBrightnessAccumulationTable(decoder *decoder.Decoder) (brightnessAccumulationTable, error) {
+	brightnessAcc := list.New()
 	frame, err := decoder.NextFrame()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var accLuminance int
-	firstFrame := rGBFrameToLuminance(frame)
+	var accBrightness int
+	firstFrame := rGBFrameToBrightness(frame)
 	lastFrame := &firstFrame
 
 	for {
@@ -97,32 +101,32 @@ func createLuminanceEvolutionTable(decoder *decoder.Decoder) (luminanceEvolution
 			}
 		}
 
-		lumFrame := rGBFrameToLuminance(frame)
-		difference := calculateFrameDifference(*lastFrame, lumFrame)
-		averageLuminance := findAverageLuminance(difference)
+		brightnessFrame := rGBFrameToBrightness(frame)
+		difference := calculateFrameDifference(*lastFrame, brightnessFrame)
+		averageBrightness := findAverageBrightness(difference)
 
 		//Check if signs are different and no 0 value
-		if (accLuminance < 0) == (averageLuminance < 0) || averageLuminance == 0 {
-			accLuminance += averageLuminance
+		if (accBrightness < 0) == (averageBrightness < 0) || averageBrightness == 0 {
+			accBrightness += averageBrightness
 		} else {
-			accLuminance = averageLuminance
+			accBrightness = averageBrightness
 		}
 
-		lastFrame = &lumFrame
+		lastFrame = &brightnessFrame
 
-		var evolution luminanceEvolution
-		evolution.index = frame.Index
-		evolution.lumAccumulation = accLuminance
-		evolution.lumMagnitude = averageLuminance
+		var accumulation brightnessAccumulation
+		accumulation.Index = frame.Index
+		accumulation.Accumulation = accBrightness
+		accumulation.Brightness = averageBrightness
 
-		luminanceEvolutionTable.PushBack(evolution)
+		brightnessAcc.PushBack(accumulation)
 	}
 
-	return luminanceEvolutionTable, nil
+	return brightnessAcc, nil
 }
 
 //In the future, we may want to parallize this
-func rGBFrameToLuminance(frame decoder.Frame) brightnessFrame {
+func rGBFrameToBrightness(frame decoder.Frame) brightnessFrame {
 
 	var lframe brightnessFrame
 	lframe.Height = frame.Height
@@ -138,18 +142,18 @@ func rGBFrameToLuminance(frame decoder.Frame) brightnessFrame {
 		}
 	}
 	lframe.Index = frame.Index
-	lframe.Data = data
+	lframe.Pixels = data
 	return lframe
 }
 
-func calculateFrameDifference(f1, f2 brightnessFrame) frameDifference {
-	var frameDifference frameDifference
+func calculateFrameDifference(f1, f2 brightnessFrame) frameBrightnessDelta {
+	var frameDifference frameBrightnessDelta
 	var maxpos, maxneg int
 	positives := make(map[int]int)
 	negatives := make(map[int]int)
 
 	for i := 0; i < f1.Height*f1.Width; i++ {
-		difference := f2.Data[i] - f1.Data[i]
+		difference := f2.Pixels[i] - f1.Pixels[i]
 		if difference > 0 {
 			positives[difference]++
 			if difference > maxpos {
@@ -165,19 +169,19 @@ func calculateFrameDifference(f1, f2 brightnessFrame) frameDifference {
 	}
 	frameDifference.Height = f1.Height
 	frameDifference.Width = f1.Width
-	frameDifference.Positives = positives
-	frameDifference.Negatives = negatives
+	frameDifference.PositivePixels = positives
+	frameDifference.NegativePixels = negatives
 	frameDifference.Index = f2.Index
 	frameDifference.MaxNeg = maxneg
 	frameDifference.MaxPos = maxpos
 	return frameDifference
 }
 
-func findAverageLuminance(fd frameDifference) int {
-	var positive, negative int
+func findAverageBrightness(fd frameBrightnessDelta) int {
 	elementsRequired := int(float32(fd.Height*fd.Width) * equations.PercentageFlashArea)
-	positive = calculateAverageLuminance(fd.Positives, elementsRequired, fd.MaxPos)
-	negative = calculateAverageLuminance(fd.Negatives, elementsRequired, fd.MaxNeg)
+	positive := calculateAverageLuminance(fd.PositivePixels, elementsRequired, fd.MaxPos)
+	negative := calculateAverageLuminance(fd.NegativePixels, elementsRequired, fd.MaxNeg)
+
 	if positive >= negative {
 		return positive
 	}
@@ -191,83 +195,72 @@ Take the top value elements in the histogram until you have an amount of pixels 
 Then compute the average value of those elements used:
 averageLuminance = Sum(luminanceOfElement * amountofElementsWithLuminance) / Sum(amountOfElementsWithLuminance)
 */
-func calculateAverageLuminance(histogram map[int]int, elementsRequired, maxLuminance int) int {
-	averageDifference := 0
+func calculateAverageLuminance(histogram map[int]int, pixelsRequired, maxBrightness int) int {
 
-	elementsScanned := 0
-	numerator, denominator := 0, 0
-	for lumMagnitude := maxLuminance; lumMagnitude > 0 && elementsScanned < elementsRequired; lumMagnitude-- {
-		numberOfPixels, pixelsWithLum := histogram[lumMagnitude]
+	var pixelsScanned, accBrightness, averageDifference int
 
-		if !pixelsWithLum {
+	for brightness := maxBrightness; brightness > 0 && pixelsScanned < pixelsRequired; brightness-- {
+		pixelsWithBrightness, brightnessExists := histogram[brightness]
+
+		if !brightnessExists {
 			continue
 		}
 
 		//If we would go over, just take enough elements to satisfy the requirement
-		if numberOfPixels+elementsScanned > elementsRequired {
-			numberOfPixels = elementsRequired - elementsScanned
+		if pixelsWithBrightness+pixelsScanned > pixelsRequired {
+			pixelsWithBrightness = pixelsRequired - pixelsScanned
 		}
 
-		numerator += numberOfPixels * lumMagnitude
-		denominator += numberOfPixels
-
-		elementsScanned += numberOfPixels
+		accBrightness += pixelsWithBrightness * brightness
+		pixelsScanned += pixelsWithBrightness
 	}
 
-	if elementsScanned < elementsRequired {
-		return 0
-	}
-
-	if denominator == 0 {
-		denominator = 1
-	}
-	averageDifference = numerator / elementsRequired
-
+	averageDifference = accBrightness / pixelsRequired
 	return averageDifference
 }
 
-func createLocalExtremesTable(lumAcc luminanceEvolutionTable) luminanceExtremeTable {
-	luminanceExtremes := list.New()
+func createFlashTable(brightnessAcc brightnessAccumulationTable) flashTable {
+	flashTable := list.New()
 
-	localMaxima := (lumAcc.Front().Value.(luminanceEvolution)).lumAccumulation
+	localMaxima := (brightnessAcc.Front().Value.(brightnessAccumulation)).Accumulation
 	var amountOfFrames int
 
-	lum := lumAcc.Front()
+	brightnessElement := brightnessAcc.Front()
 
 	for {
-		if lum == nil {
-			var extreme luminanceExtreme
-			extreme.frameCount = amountOfFrames
-			extreme.magnitude = localMaxima
-			luminanceExtremes.PushBack(extreme)
+		if brightnessElement == nil {
+			var extreme flash
+			extreme.frames = amountOfFrames
+			extreme.brightness = localMaxima
+			flashTable.PushBack(extreme)
 			break
 		}
 
-		evolution := lum.Value.(luminanceEvolution)
+		accumulation := brightnessElement.Value.(brightnessAccumulation)
 
-		lumVal := evolution.lumAccumulation
+		brightness := accumulation.Accumulation
 
-		if (lumVal < 0) == (localMaxima < 0) {
+		if (brightness < 0) == (localMaxima < 0) {
 			amountOfFrames++
-			if math.Abs(float64(localMaxima)) < math.Abs(float64(lumVal)) {
-				localMaxima = lumVal
+			if math.Abs(float64(localMaxima)) < math.Abs(float64(brightness)) {
+				localMaxima = brightness
 			}
 		} else {
-			var extreme luminanceExtreme
-			extreme.frameCount = amountOfFrames
-			extreme.magnitude = localMaxima
-			luminanceExtremes.PushBack(extreme)
+			var extreme flash
+			extreme.frames = amountOfFrames
+			extreme.brightness = localMaxima
+			flashTable.PushBack(extreme)
 			amountOfFrames = 1
-			localMaxima = lumVal
+			localMaxima = brightness
 		}
 
-		lum = lum.Next()
+		brightnessElement = brightnessElement.Next()
 	}
 
-	return luminanceExtremes
+	return flashTable
 }
 
-func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.HazardReport {
+func createHazardReport(lumExtTab flashTable, fps int) hazards.HazardReport {
 	var hazardReport hazards.HazardReport
 
 	flashesPerSecondThreshold := 3
@@ -275,14 +268,14 @@ func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.Hazard
 	countedFlashes := 0
 	currentFrameIndex := 0
 	flashStartIndex := -1
-	previousLuminance := (lumExtTab.Front().Value.(luminanceExtreme)).magnitude
+	previousLuminance := (lumExtTab.Front().Value.(flash)).brightness
 	for lumExtremeElement := lumExtTab.Front(); lumExtremeElement != nil; lumExtremeElement = lumExtremeElement.Next() {
 
-		lumExtreme := lumExtremeElement.Value.(luminanceExtreme)
+		lumExtreme := lumExtremeElement.Value.(flash)
 
-		currentFrameIndex += lumExtreme.frameCount
+		currentFrameIndex += lumExtreme.frames
 		previousLuminanceAbs := int(math.Abs(float64(previousLuminance)))
-		currentLuminance := lumExtreme.magnitude
+		currentLuminance := lumExtreme.brightness
 		currentLuminanceAbs := int(math.Abs(float64(currentLuminance)))
 
 		var darkerLuminance int
@@ -294,7 +287,7 @@ func createHazardReport(lumExtTab luminanceExtremeTable, fps int) hazards.Hazard
 
 		//We are currently checking for flashes
 		if flashStartIndex != -1 {
-			frameCounter += lumExtreme.frameCount
+			frameCounter += lumExtreme.frames
 		}
 
 		//Has to be a difference of 20 or more candellas, and darker frame must be below 160
