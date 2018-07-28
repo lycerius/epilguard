@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -61,7 +60,6 @@ func (hr *HazardReport) MarshalJSON() ([]byte, error) {
 	}
 	buf.WriteByte(']')
 	buf.WriteByte('}')
-	fmt.Println(string(buf.Bytes()))
 	return buf.Bytes(), nil
 }
 

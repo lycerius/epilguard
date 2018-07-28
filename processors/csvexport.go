@@ -112,7 +112,7 @@ func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable,
 
 	csv.Write([]string{"FrameIndex", "Brightness"})
 
-	var frameIndex uint64
+	var frameIndex uint64 = 1
 	for tableElement := flashTable.Front(); tableElement != nil; tableElement = tableElement.Next() {
 		flash := tableElement.Value.(Flash)
 		brightness := strconv.Itoa(flash.Brightness)

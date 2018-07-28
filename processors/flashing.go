@@ -288,7 +288,7 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 	flashesPerSecondThreshold := 3
 	frameCounter := 0
 	countedFlashes := 0
-	currentFrameIndex := 0
+	currentFrameIndex := 1
 	flashStartIndex := -1
 	previousLuminance := (lumExtTab.Front().Value.(Flash)).Brightness
 	for lumExtremeElement := lumExtTab.Front(); lumExtremeElement != nil; lumExtremeElement = lumExtremeElement.Next() {
@@ -296,13 +296,12 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 		lumExtreme := lumExtremeElement.Value.(Flash)
 
 		currentFrameIndex += lumExtreme.Frames
-		previousLuminanceAbs := int(math.Abs(float64(previousLuminance)))
 		currentLuminance := lumExtreme.Brightness
 		currentLuminanceAbs := int(math.Abs(float64(currentLuminance)))
 
 		var darkerLuminance int
 		if previousLuminance < 0 {
-			darkerLuminance = previousLuminanceAbs
+			darkerLuminance = int(math.Abs(float64(previousLuminance)))
 		} else {
 			darkerLuminance = currentLuminanceAbs
 		}
@@ -313,7 +312,7 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 		}
 
 		//Has to be a difference of 20 or more candellas, and darker frame must be below 160
-		if math.Abs(float64(currentLuminance-previousLuminance)) > 20 && darkerLuminance < 160 {
+		if currentLuminanceAbs >= 20 && darkerLuminance < 160 {
 			if flashStartIndex == -1 {
 				//Start detecting flashes
 				flashStartIndex = currentFrameIndex
