@@ -21,7 +21,7 @@ func main() {
 	}
 
 	path := os.Args[1]
-	jobID := os.Args[2]
+	csvDir := os.Args[2]
 
 	if _, err := os.Stat(path); err != nil {
 		log.Fatal("Could not open '", path, "', ", err)
@@ -30,7 +30,7 @@ func main() {
 	decoder := decoder.NewDecoder(path)
 	decoder.FrameBufferCacheSize = 15
 	decoder.Start()
-	processor := processors.NewFlashingProcessor(&decoder, jobID)
+	processor := processors.NewFlashingProcessor(&decoder, csvDir)
 	err := processor.Process()
 
 	if err != nil {
@@ -45,5 +45,5 @@ func main() {
 }
 
 func printHelp() {
-	println("USAGE: epilguard [input-file] [job-id]")
+	println("USAGE: epilguard [input-file] [csv-export-directory]")
 }
