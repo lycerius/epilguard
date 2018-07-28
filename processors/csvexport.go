@@ -80,6 +80,7 @@ func ExportFlashTable(path string, csvDir string, flashTable FlashTable, date ti
 	return nil
 }
 
+//TODO: Export detected flashes
 func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable, date time.Time) error {
 	path = GenerateCSVFileName(path, csvDir, "FrameFlashes", date)
 	csv, err := newCSVFile(path)
@@ -104,3 +105,5 @@ func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable,
 	}
 	return nil
 }
+
+//TODO: Export Hazard Report
