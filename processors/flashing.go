@@ -88,8 +88,12 @@ func (proc *FlashingProcessor) Process() error {
 	}
 
 	report := createHazardReport(flashes, proc.decoder.FramesPerSecond)
-
 	report.CreatedOn = time.Now()
+
+	err = ExportHazardReport(proc.decoder.FileName, proc.CSVDirectory, report, now)
+	if err != nil {
+		return err
+	}
 
 	proc.HazardReport = report
 

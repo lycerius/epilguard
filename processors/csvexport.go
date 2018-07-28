@@ -1,12 +1,15 @@
 package processors
 
 import (
+	"bufio"
 	"encoding/csv"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lycerius/epilguard/hazards"
 )
 
 //newCSVFile creates a new CSV file and returns a writeable stream
@@ -20,7 +23,24 @@ func newCSVFile(path string) (*csv.Writer, error) {
 	return writer, nil
 }
 
+func newFile(path string) (*bufio.Writer, error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+	writer := bufio.NewWriter(file)
+	return writer, err
+}
+
 func GenerateCSVFileName(videoName, csvDir, datasetName string, date time.Time) string {
+	return GenerateExportItemFileName(videoName, csvDir, datasetName, date) + ".csv"
+}
+
+func GenerateJSONFileName(videoName, csvDir, datasetName string, date time.Time) string {
+	return GenerateExportItemFileName(videoName, csvDir, datasetName, date) + ".json"
+}
+
+func GenerateExportItemFileName(videoName, csvDir, datasetName string, date time.Time) string {
 	videoName = filepath.Base(videoName)
 	lastIndexOfDot := strings.LastIndex(videoName, ".")
 	if lastIndexOfDot == -1 {
@@ -33,7 +53,7 @@ func GenerateCSVFileName(videoName, csvDir, datasetName string, date time.Time) 
 	}
 
 	normalName := strings.Replace(videoName[:clamp], " ", "-", -1)
-	return filepath.Join(csvDir, strconv.FormatUint(uint64(date.Unix()), 16)+"-"+normalName+"-"+datasetName+".csv")
+	return filepath.Join(csvDir, strconv.FormatUint(uint64(date.Unix()), 16)+"-"+normalName+"-"+datasetName)
 }
 
 func ExportBrightnessAccumulation(path string, csvDir string, accTab BrightnessAccumulationTable, date time.Time) error {
@@ -106,4 +126,21 @@ func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable,
 	return nil
 }
 
-//TODO: Export Hazard Report
+func ExportHazardReport(path, csvDir string, report hazards.HazardReport, date time.Time) error {
+	path = GenerateJSONFileName(path, csvDir, "Report", date)
+	file, err := newFile(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Flush()
+	json, err := report.MarshalJSON()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Write(json)
+
+	return err
+}
