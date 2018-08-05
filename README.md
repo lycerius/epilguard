@@ -1,23 +1,25 @@
-# Epilguard-Algorithms
+# Epilguard
+Epilguard analyzes for photosensitive content in videos. The project is compliant with [ITU-R BT.1702](https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.1702-0-200502-I!!PDF-E.pdf), which details how to identify photosensitive hazards in video content.
 
-## Installation
+## Using Epilguard
+You can download the latest release of epilguard for your platform from github. Before you can use Epilguard, download a build of [FFMpeg](https://www.ffmpeg.org/) and add it to your PATH.
+
+You can now use epilguard from your terminal
+```terminal
+epilguard -h
+```
+
+## Building from Source
 
 ### Installing GOLANG
-Before you can use Epilguard-Algorithms, you need to make sure that you have go properly installed.
-**This includes setting your environment variables**
+Install the latest build of golang for your platform.
+1. Download Go [here](https://golang.org/dl/)
+2. Follow this [guide](https://golang.org/doc/install)
 
-1. You can download Go [here](https://golang.org/dl/)
-2. Afterwards you should follow this [guide](https://golang.org/doc/install) (environment variables)
 
-### Compiling and installing
-cd into the project directory
+### Cloning and Building Epilguard
+Clone epilguard using go get
 ```terminal
-cd $GOHOME/src/github.com/lycerius/epilguard
+go get -u github.com/lycerius/epilguard
 ```
-
-then compile and install the project
-```terminal
-go build && go install
-```
-
-The project will be placed on your PATH if your environment variables are set correctly.
+This will place epilguard source in your $GOPATH, and build it for you.
