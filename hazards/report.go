@@ -10,28 +10,19 @@ import (
 //HazardList a list of hazards
 type HazardList = list.List
 
-//HazardReport collection of hazards found during an analysis for a job
+//HazardReport collection of hazards found during processing
 type HazardReport struct {
-	JobID     string
 	CreatedOn time.Time
 	Hazards   HazardList
 }
 
+//MarshalJSON converts a hazard report to JSON
 func (hr *HazardReport) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 
 	buf.WriteByte('{')
-	m, err := json.Marshal(hr.JobID)
 
-	if err != nil {
-		return nil, err
-	}
-
-	buf.WriteString("\"jobId\":")
-	buf.Write(m)
-	buf.WriteByte(',')
-
-	m, err = json.Marshal(hr.CreatedOn)
+	m, err := json.Marshal(hr.CreatedOn)
 
 	if err != nil {
 		return nil, err

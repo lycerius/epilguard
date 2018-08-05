@@ -23,6 +23,7 @@ func newCSVFile(path string) (*csv.Writer, error) {
 	return writer, nil
 }
 
+//newFile creates a file at path and returns a writer to it
 func newFile(path string) (*bufio.Writer, error) {
 	file, err := os.Create(path)
 	if err != nil {
@@ -32,15 +33,15 @@ func newFile(path string) (*bufio.Writer, error) {
 	return writer, err
 }
 
-func GenerateCSVFileName(videoName, csvDir, datasetName string, date time.Time) string {
-	return GenerateExportItemFileName(videoName, csvDir, datasetName, date) + ".csv"
+func generateCSVFileName(videoName, csvDir, datasetName string, date time.Time) string {
+	return generateExportItemFileName(videoName, csvDir, datasetName, date) + ".csv"
 }
 
-func GenerateJSONFileName(videoName, csvDir, datasetName string, date time.Time) string {
-	return GenerateExportItemFileName(videoName, csvDir, datasetName, date) + ".json"
+func generateJSONFileName(videoName, csvDir, datasetName string, date time.Time) string {
+	return generateExportItemFileName(videoName, csvDir, datasetName, date) + ".json"
 }
 
-func GenerateExportItemFileName(videoName, csvDir, datasetName string, date time.Time) string {
+func generateExportItemFileName(videoName, csvDir, datasetName string, date time.Time) string {
 	videoName = filepath.Base(videoName)
 	lastIndexOfDot := strings.LastIndex(videoName, ".")
 	if lastIndexOfDot == -1 {
@@ -56,8 +57,9 @@ func GenerateExportItemFileName(videoName, csvDir, datasetName string, date time
 	return filepath.Join(csvDir, strconv.FormatUint(uint64(date.Unix()), 16)+"-"+normalName+"-"+datasetName)
 }
 
+//ExportBrightnessAccumulation creates a csv using accTab at csvDir using the name of the video at path and the current time date
 func ExportBrightnessAccumulation(path string, csvDir string, accTab BrightnessAccumulationTable, date time.Time) error {
-	path = GenerateCSVFileName(path, csvDir, "Accumulation", date)
+	path = generateCSVFileName(path, csvDir, "Accumulation", date)
 	csv, err := newCSVFile(path)
 
 	if err != nil {
@@ -79,8 +81,9 @@ func ExportBrightnessAccumulation(path string, csvDir string, accTab BrightnessA
 	return nil
 }
 
+//ExportFlashTable creates a csv using flashTable at csvDir using the name of the video at path and the current time date
 func ExportFlashTable(path string, csvDir string, flashTable FlashTable, date time.Time) error {
-	path = GenerateCSVFileName(path, csvDir, "Flashes", date)
+	path = generateCSVFileName(path, csvDir, "Flashes", date)
 	csv, err := newCSVFile(path)
 
 	if err != nil {
@@ -100,9 +103,9 @@ func ExportFlashTable(path string, csvDir string, flashTable FlashTable, date ti
 	return nil
 }
 
-//TODO: Export detected flashes
+//ExportFlashTableByFrames creates a csv using flastTable at csvDir using the name of the video at path and the current time date
 func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable, date time.Time) error {
-	path = GenerateCSVFileName(path, csvDir, "FrameFlashes", date)
+	path = generateCSVFileName(path, csvDir, "FrameFlashes", date)
 	csv, err := newCSVFile(path)
 
 	if err != nil {
@@ -126,8 +129,9 @@ func ExportFlashTableByFrames(path string, csvDir string, flashTable FlashTable,
 	return nil
 }
 
+//ExportHazardReport creates a json file using report  at csvDir using the name of the video at path and the current time date
 func ExportHazardReport(path, csvDir string, report hazards.HazardReport, date time.Time) error {
-	path = GenerateJSONFileName(path, csvDir, "Report", date)
+	path = generateJSONFileName(path, csvDir, "Report", date)
 	file, err := newFile(path)
 	if err != nil {
 		return err

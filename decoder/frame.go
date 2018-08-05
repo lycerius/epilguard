@@ -2,9 +2,9 @@ package decoder
 
 //Frame 2D Image Frame
 type Frame struct {
-	pixels        []byte //Frame container
+	pixels        []byte //pixel container
 	Height, Width int    //Height and Width for the current frame
-	Index         uint   //The frame number
+	Index         uint   //The frame index
 }
 
 //Pixel Reperesents colored element a within a Frame

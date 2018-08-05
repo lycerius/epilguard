@@ -12,13 +12,14 @@ import (
 	"strings"
 )
 
-//Magic command for executing ffmpeg
+//Command line magic for ffmpeg and ffprobe
 const _FFProbeCommnand = "ffprobe"
 const _FFProbeArgs = "[filename] -v quiet -print_format json -show_format -show_streams"
 const _FFMPEGCommand string = "ffmpeg"
 const _FFMPEGArgs string = "-i [filename] -an -pix_fmt rgb24 -c:v rawvideo -map 0:v -f image2pipe -"
 const _FFMPEGArgs480p = "-s hd480"
 const _FFMPEGArgs30fps = "-r 30 -framerate 30"
+
 const _FrameBufferDefaultSize = 30
 
 //Resolution and FPS Finding Regex
@@ -154,6 +155,7 @@ func (f *Decoder) NextFrame() (Frame, error) {
 	return <-f.frameBuffer, nil
 }
 
+//cacheFrameBuffer decodes video frames from ffmpeg and places them in the buffer
 func cacheFrameBuffer(f *Decoder) {
 	var fIndex uint
 	frameBuffer := f.frameBuffer
@@ -197,6 +199,7 @@ func (f *Decoder) nextSourceFrame() (Frame, error) {
 	return frame, nil
 }
 
+//finalize Clears the frame buffer and closes the decoding stream
 func (f *Decoder) finalize() {
 	close(f.frameBuffer)
 	f.opened = false
@@ -204,6 +207,7 @@ func (f *Decoder) finalize() {
 	f.decoderOpened = false
 }
 
+//createFFMPegArguments creates command line magic with the given options for the video fileName
 func createFFMPegArguments(fileName string, fps30, conv480p bool) []string {
 	args := strings.Split(_FFMPEGArgs, " ")
 
@@ -226,7 +230,7 @@ func createFFMPegArguments(fileName string, fps30, conv480p bool) []string {
 	return fullargs
 }
 
-//probeFileInformation retrieves the hieght, width, and fps from a video file
+//probeFileInformation retrieves the hieght, width, and fps from a video file using ffprobe
 func probeFileInformation(fileLocation string) (int, int, error) {
 	var width, fps int
 	args := strings.Split(_FFProbeArgs, " ")
@@ -264,11 +268,13 @@ func probeFileInformation(fileLocation string) (int, int, error) {
 	return width, fps, nil
 }
 
+//probeStreamInfo retrieves the video hieght, width, and fps from an ffmpeg stderr stream
 func probeStreamInfo(stderr io.ReadCloser) (int, int, int, error) {
 	height, width, fps := -1, -1, -1
 
 	reader := bufio.NewReader(stderr)
 
+	//Read until we have all variables
 	for fps == -1 || width == -1 || height == -1 {
 		str, err := reader.ReadString('\n')
 
@@ -276,6 +282,7 @@ func probeStreamInfo(stderr io.ReadCloser) (int, int, int, error) {
 			return height, width, fps, err
 		}
 
+		//find resolution
 		if resolutionRegex.MatchString(str) {
 			matchGroups := resolutionRegex.FindStringSubmatch(str)
 			if resx, err := strconv.Atoi(matchGroups[len(matchGroups)-2]); err != nil {
@@ -300,17 +307,17 @@ func probeStreamInfo(stderr io.ReadCloser) (int, int, int, error) {
 		}
 	}
 
-	stderr.Close()
 	return height, width, fps, nil
 }
 
+//calculateFpsFromRatio takes a ratio string from FFMpeg (ex: Frames/Seconds) and converts it to fps
 func calculateFpsFromRatio(ratio string) float64 {
 	operands := strings.Split(ratio, "/")
 	numerator, _ := strconv.Atoi(operands[0])
 	denominator, _ := strconv.Atoi(operands[1])
 
 	if denominator == 0 {
-		denominator = 1 //Can't divide by 0
+		denominator = 1 //Can't divide by 0, it is possible for a ratio to have a 0 denominator
 	}
 
 	return float64(numerator) / float64(denominator)

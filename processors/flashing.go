@@ -12,10 +12,10 @@ import (
 
 //FlashingProcessor Processes a video stream and detects flashing photosensitive content
 type FlashingProcessor struct {
-	decoder       *decoder.Decoder     //Decoder to fetch frames from
-	CSVDirectory  string               //The job assosiated with this request
-	HazardReport  hazards.HazardReport //Generated hazard report
-	AreaThreshold float32
+	decoder         *decoder.Decoder     //Decoder to fetch frames from
+	ReportDirectory string               //The job assosiated with this request
+	HazardReport    hazards.HazardReport //Generated hazard report
+	AreaThreshold   float32
 }
 
 //brightnessFrame Describes the pixel brightness transition between two frames
@@ -41,6 +41,7 @@ type BrightnessAccumulation struct {
 	Brightness, Accumulation int
 }
 
+//FlashTable is a list of flashes
 type FlashTable = *list.List
 
 //Flash describes the maximum brightness achieved over a set of frames before an inversion
@@ -49,16 +50,16 @@ type Flash struct {
 }
 
 //NewFlashingProcessor creates a flashing processor
-func NewFlashingProcessor(f *decoder.Decoder, csvDir string) FlashingProcessor {
+func NewFlashingProcessor(f *decoder.Decoder, reportDir string) FlashingProcessor {
 	var processor FlashingProcessor
 
 	processor.decoder = f
-	processor.CSVDirectory = csvDir
+	processor.ReportDirectory = reportDir
 
 	return processor
 }
 
-//Process begins scanning the video for flashing photosensitive content
+//Process scans a video for photosensitive content and exports it to reportDir
 func (proc *FlashingProcessor) Process() error {
 	now := time.Now()
 	brightnessAcc, err := createBrightnessAccumulationTable(proc.decoder)
@@ -67,21 +68,21 @@ func (proc *FlashingProcessor) Process() error {
 		return err
 	}
 
-	err = ExportBrightnessAccumulation(proc.decoder.FileName, proc.CSVDirectory, brightnessAcc, now)
-
-	if err != nil {
-		return err
-	}
-
 	flashes := createFlashTable(brightnessAcc)
 
-	err = ExportFlashTable(proc.decoder.FileName, proc.CSVDirectory, flashes, now)
+	err = ExportBrightnessAccumulation(proc.decoder.FileName, proc.ReportDirectory, brightnessAcc, now)
 
 	if err != nil {
 		return err
 	}
 
-	err = ExportFlashTableByFrames(proc.decoder.FileName, proc.CSVDirectory, flashes, now)
+	err = ExportFlashTable(proc.decoder.FileName, proc.ReportDirectory, flashes, now)
+
+	if err != nil {
+		return err
+	}
+
+	err = ExportFlashTableByFrames(proc.decoder.FileName, proc.ReportDirectory, flashes, now)
 
 	if err != nil {
 		return err
@@ -90,7 +91,7 @@ func (proc *FlashingProcessor) Process() error {
 	report := createHazardReport(flashes, proc.decoder.FramesPerSecond)
 	report.CreatedOn = time.Now()
 
-	err = ExportHazardReport(proc.decoder.FileName, proc.CSVDirectory, report, now)
+	err = ExportHazardReport(proc.decoder.FileName, proc.ReportDirectory, report, now)
 	if err != nil {
 		return err
 	}
