@@ -6,7 +6,7 @@ You can download the latest release of epilguard for your platform from github. 
 
 You can now use epilguard from your terminal
 ```terminal
-epilguard -h
+epilguard
 ```
 
 ## Building from Source
