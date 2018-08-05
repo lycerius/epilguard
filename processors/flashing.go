@@ -228,11 +228,11 @@ func findAverageBrightness(fd frameBrightnessDelta) int {
 }
 
 /*
-Calculates the average luminance with a given histogram
-The algorithm for calculating the average luminance for a given histogram:
+Calculates the average brightness with a given histogram
+The algorithm for calculating the average brightness for a given histogram:
 Take the top value elements in the histogram until you have an amount of pixels required for a flash
 Then compute the average value of those elements used:
-averageLuminance = Sum(luminanceOfElement * amountofElementsWithLuminance) / Sum(amountOfElementsWithLuminance)
+averagebrightness = Sum(brightnessOfElement * amountofElementsWithbrightness) / Sum(amountOfElementsWithbrightness)
 */
 func calculateAverageBrightness(histogram map[int]int, pixelsRequired, maxBrightness int) int {
 
@@ -304,7 +304,7 @@ func createFlashTable(brightnessAcc BrightnessAccumulationTable) FlashTable {
 	return flashTable
 }
 
-func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
+func createHazardReport(brightnessExtTab FlashTable, fps int) hazards.HazardReport {
 	var hazardReport hazards.HazardReport
 
 	flashesPerSecondThreshold := equations.FlashFrequencyMax
@@ -312,29 +312,29 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 	countedFlashes := 0
 	currentFrameIndex := 1
 	flashStartIndex := -1
-	previousLuminance := (lumExtTab.Front().Value.(Flash)).Brightness
-	for lumExtremeElement := lumExtTab.Front(); lumExtremeElement != nil; lumExtremeElement = lumExtremeElement.Next() {
+	previousBrightness := (brightnessExtTab.Front().Value.(Flash)).Brightness
+	for brightnessExtremeElement := brightnessExtTab.Front(); brightnessExtremeElement != nil; brightnessExtremeElement = brightnessExtremeElement.Next() {
 
-		lumExtreme := lumExtremeElement.Value.(Flash)
+		brightnessExtreme := brightnessExtremeElement.Value.(Flash)
 
-		currentFrameIndex += lumExtreme.Frames
-		currentLuminance := lumExtreme.Brightness
-		currentLuminanceAbs := int(math.Abs(float64(currentLuminance)))
+		currentFrameIndex += brightnessExtreme.Frames
+		currentBrightness := brightnessExtreme.Brightness
+		currentBrightnessAbs := int(math.Abs(float64(currentBrightness)))
 
-		var darkerLuminance int
-		if previousLuminance < 0 {
-			darkerLuminance = int(math.Abs(float64(previousLuminance)))
+		var darkerBrightness int
+		if previousBrightness < 0 {
+			darkerBrightness = int(math.Abs(float64(previousBrightness)))
 		} else {
-			darkerLuminance = currentLuminanceAbs
+			darkerBrightness = currentBrightnessAbs
 		}
 
 		//We are currently checking for flashes
 		if flashStartIndex != -1 {
-			frameCounter += lumExtreme.Frames
+			frameCounter += brightnessExtreme.Frames
 		}
 
 		//Has to be a difference of 20 or more candellas, and darker frame must be below 160
-		if currentLuminanceAbs >= 20 && darkerLuminance < 160 {
+		if currentBrightnessAbs >= 20 && darkerBrightness < 160 {
 			if flashStartIndex == -1 {
 				//Start detecting flashes
 				flashStartIndex = currentFrameIndex
@@ -343,7 +343,7 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 		}
 
 		//We have surpassed 1 second after checking for flashes, check to see if we need to make a report
-		if frameCounter >= fps || lumExtremeElement.Next() == nil {
+		if frameCounter >= fps || brightnessExtremeElement.Next() == nil {
 
 			//Crossed threshold
 			if countedFlashes >= flashesPerSecondThreshold {
@@ -360,7 +360,7 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 			countedFlashes = 0
 		}
 
-		previousLuminance = currentLuminance
+		previousBrightness = currentBrightness
 	}
 
 	hazardReport.Hazards = consolidateHazardList(hazardReport.Hazards)
