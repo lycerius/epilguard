@@ -8,7 +8,7 @@ import (
 const PercentageFlashArea float32 = 0.25
 
 //FlashFrequencyMax ITU-R: maximum flash frequency = 3Hz
-const FlashFrequencyMax float32 = 3
+const FlashFrequencyMax int = 3
 
 //FlashDeltaMax ITU-R: Delta Candellas must be >= 20cd/m^2
 const FlashDeltaMax float32 = 20

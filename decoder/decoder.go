@@ -68,14 +68,14 @@ func (f *Decoder) Start() error {
 		return err
 	}
 
-	fileWidth, fileFps, err := probeFileInformation(f.FileName)
+	fileHeight, fileFps, err := probeFileInformation(f.FileName)
 
 	if err != nil {
 		return err
 	}
 
 	f.ConvertedTo30FPS = fileFps > 30
-	f.ConvertedTo480p = fileWidth > 480
+	f.ConvertedTo480p = fileHeight > 480
 
 	arguments := createFFMPegArguments(f.FileName, f.ConvertedTo30FPS, f.ConvertedTo480p)
 
@@ -232,7 +232,7 @@ func createFFMPegArguments(fileName string, fps30, conv480p bool) []string {
 
 //probeFileInformation retrieves the hieght, width, and fps from a video file using ffprobe
 func probeFileInformation(fileLocation string) (int, int, error) {
-	var width, fps int
+	var height, fps int
 	args := strings.Split(_FFProbeArgs, " ")
 	args[0] = fileLocation
 	probe := exec.Command(_FFProbeCommnand, args...)
@@ -240,18 +240,18 @@ func probeFileInformation(fileLocation string) (int, int, error) {
 	reader, err := probe.StdoutPipe()
 
 	if err != nil {
-		return width, fps, err
+		return height, fps, err
 	}
 
 	err = probe.Start()
 	if err != nil {
-		return width, fps, err
+		return height, fps, err
 	}
 
 	jsonDecoder := json.NewDecoder(reader)
 
 	type Streams struct {
-		Width      int    `json:"width"`
+		Height     int    `json:"height"`
 		RFrameRate string `json:"r_frame_rate"`
 	}
 
@@ -263,9 +263,9 @@ func probeFileInformation(fileLocation string) (int, int, error) {
 	jsonDecoder.Decode(&info)
 
 	stream0 := info.Streams[0]
-	width = stream0.Width
+	height = stream0.Height
 	fps = int(calculateFpsFromRatio(stream0.RFrameRate))
-	return width, fps, nil
+	return height, fps, nil
 }
 
 //probeStreamInfo retrieves the video hieght, width, and fps from an ffmpeg stderr stream

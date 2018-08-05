@@ -1,106 +1,78 @@
 package test
 
 import (
+	"io/ioutil"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/lycerius/epilguard/hazards"
 
-	"github.com/lycerius/epilguard/decoder"
 	"github.com/lycerius/epilguard/processors"
 	"github.com/stretchr/testify/assert"
 )
 
-const porygon = "./resources/porygon.mp4"
-const h3h3 = "./resources/h3h3.mp4"
-const ohhgod = "./resources/ohhgod.mp4"
-
-func createDecoder(file string) (decoder.Decoder, error) {
-	decoder := decoder.NewDecoder(file)
-
-	return decoder, decoder.Start()
+func createTestProcessor(path string, t *assert.Assertions) processors.FlashingProcessor {
+	decoder := createDecoderTestDecoder(path, t)
+	proc := processors.NewFlashingProcessor(&decoder, Test_Report_Directory)
+	createTestDirectory(t)
+	return proc
 }
 
-func createProcessor(file string) (processors.FlashingProcessor, error) {
-	var processor processors.FlashingProcessor
-	decoder, err := createDecoder(file)
-
+func createTestDirectory(t *assert.Assertions) {
+	err := os.Mkdir(Test_Report_Directory, 0777)
 	if err != nil {
-		return processor, err
+		if !strings.HasSuffix(err.Error(), "file exists") {
+			t.NoError(err, "Error creating testing directory")
+		}
 	}
-
-	processor = processors.NewFlashingProcessor(&decoder, "test job")
-
-	return processor, nil
 }
 
-func TestProcessorCanInitialize(t *testing.T) {
+func emptyTestDirectory(t *assert.Assertions) {
+	err := os.RemoveAll(Test_Report_Directory)
+	t.NoError(err, "Error removing testing directory")
+}
+
+func TestCanCreateProcessor(t *testing.T) {
 	assert := assert.New(t)
-	_, err := createProcessor(smallVideoFile)
-
-	assert.NoError(err, "Error during initialization")
+	createTestProcessor(Test_Video_White, assert)
+	defer emptyTestDirectory(assert)
 }
 
-func TestProcessorCanProcessSmallVideo(t *testing.T) {
+func TestProcessorCreatesReports(t *testing.T) {
 	assert := assert.New(t)
-
-	proc, err := createProcessor(smallVideoFile)
-
-	assert.NoError(err, "Error during initialization")
-
-	err = proc.Process()
-
-	assert.NoError(err, "Error during processing")
+	proc := createTestProcessor(Test_Video_White, assert)
+	defer emptyTestDirectory(assert)
+	err := proc.Process()
+	assert.NoError(err)
+	files, err := ioutil.ReadDir(Test_Report_Directory)
+	assert.NoError(err)
+	assert.Equalf(4, len(files), "Expected 4 report files, got %d", len(files))
 }
 
-func TestProcessorCanProcessLargeVideo(t *testing.T) {
+func TestProcessorDoesntFailWhite(t *testing.T) {
 	assert := assert.New(t)
+	proc := createTestProcessor(Test_Video_White, assert)
+	defer emptyTestDirectory(assert)
+	err := proc.Process()
+	assert.NoError(err)
 
-	proc, err := createProcessor(video720pTest)
-
-	assert.NoError(err, "Error during initialization")
-
-	err = proc.Process()
+	report := proc.HazardReport
+	assert.Equalf(0, report.Hazards.Len(), "Expected no hazards, got %d", report.Hazards.Len())
 }
-
-func TestProcessorFailsPorygon(t *testing.T) {
-	assert := assert.New(t)
-	proc, err := createProcessor(porygon)
-	assert.NoError(err, "Error during initialization")
-	err = proc.Process()
-}
-
 func TestProcessorFailsOhhGod(t *testing.T) {
 	assert := assert.New(t)
+	proc := createTestProcessor(Test_Video_Fail, assert)
+	defer emptyTestDirectory(assert)
 
-	proc, err := createProcessor(ohhgod)
+	err := proc.Process()
+	assert.NoError(err)
 
-	assert.NoError(err, "Error during initialization")
-
-	err = proc.Process()
-}
-
-func TestProcessorFailsH3H3(t *testing.T) {
-	assert := assert.New(t)
-
-	proc, err := createProcessor(h3h3)
-
-	assert.NoError(err, "Error during initialization")
-
-	err = proc.Process()
-}
-
-func TestUploadResult(t *testing.T) {
-	assert := assert.New(t)
-
-	proc, err := createProcessor(smallVideoFile)
-
-	assert.NoError(err, "Error during initialization")
-
-	err = proc.Process()
-
-	assert.NoError(err, "Error occured during processing")
 	report := proc.HazardReport
 
-	hazards.UploadHazardReport(report)
+	assert.Equal(1, report.Hazards.Len(), "Expected 1 hazard, got %d", report.Hazards.Len())
 
+	hazard := report.Hazards.Front().Value.(hazards.Hazard)
+	assert.Equal(0, int(hazard.Start), "Expected hazard start to be 0")
+	assert.Equal(5, int(hazard.End), "Expected hazard to end at 5")
 }

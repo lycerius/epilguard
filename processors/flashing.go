@@ -33,6 +33,7 @@ type frameBrightnessDelta struct {
 	MaxPos, MaxNeg                 int
 }
 
+//BrightnessAccumulationTable a list of Brightness Accumulations
 type BrightnessAccumulationTable = *list.List
 
 //BrightnessAccumulation holds the average brightness and the total accumulation over time
@@ -61,48 +62,55 @@ func NewFlashingProcessor(f *decoder.Decoder, reportDir string) FlashingProcesso
 
 //Process scans a video for photosensitive content and exports it to reportDir
 func (proc *FlashingProcessor) Process() error {
-	now := time.Now()
-	brightnessAcc, err := createBrightnessAccumulationTable(proc.decoder)
 
+	brightnessAcc, err := createBrightnessAccumulationTable(proc.decoder)
 	if err != nil {
 		return err
 	}
 
 	flashes := createFlashTable(brightnessAcc)
 
-	err = ExportBrightnessAccumulation(proc.decoder.FileName, proc.ReportDirectory, brightnessAcc, now)
+	report := createHazardReport(flashes, proc.decoder.FramesPerSecond)
+	report.CreatedOn = time.Now()
 
+	proc.exportReport(brightnessAcc, flashes, report)
+	proc.HazardReport = report
+
+	return nil
+}
+
+//exportReport exports the report to ReportDirectory
+func (proc *FlashingProcessor) exportReport(brightnessAcc BrightnessAccumulationTable, flashes FlashTable, report hazards.HazardReport) error {
+	now := time.Now()
+
+	err := ExportBrightnessAccumulation(proc.decoder.FileName, proc.ReportDirectory, brightnessAcc, now)
 	if err != nil {
 		return err
 	}
 
 	err = ExportFlashTable(proc.decoder.FileName, proc.ReportDirectory, flashes, now)
-
 	if err != nil {
 		return err
 	}
 
 	err = ExportFlashTableByFrames(proc.decoder.FileName, proc.ReportDirectory, flashes, now)
-
 	if err != nil {
 		return err
 	}
-
-	report := createHazardReport(flashes, proc.decoder.FramesPerSecond)
-	report.CreatedOn = time.Now()
 
 	err = ExportHazardReport(proc.decoder.FileName, proc.ReportDirectory, report, now)
 	if err != nil {
 		return err
 	}
 
-	proc.HazardReport = report
-
 	return nil
 }
 
+//createBrightnessAccumulationTable decodes all frames and creates a brightness accumulation table
 func createBrightnessAccumulationTable(decoder *decoder.Decoder) (BrightnessAccumulationTable, error) {
 	brightnessAcc := list.New()
+
+	//First frame for baseline brightness
 	frame, err := decoder.NextFrame()
 
 	if err != nil {
@@ -117,6 +125,7 @@ func createBrightnessAccumulationTable(decoder *decoder.Decoder) (BrightnessAccu
 		frame, err := decoder.NextFrame()
 
 		if err != nil {
+			//This is an OK error, just EOF
 			if err.Error() == "EOF" {
 				break
 			} else {
@@ -124,51 +133,56 @@ func createBrightnessAccumulationTable(decoder *decoder.Decoder) (BrightnessAccu
 			}
 		}
 
+		//Calculations
 		brightnessFrame := rGBFrameToBrightness(frame)
 		difference := calculateFrameDifference(*lastFrame, brightnessFrame)
 		averageBrightness := findAverageBrightness(difference)
 
-		//Check if signs are different and no 0 value
+		//If signs are equal, or no change, accumulate
 		if (accBrightness < 0) == (averageBrightness < 0) || averageBrightness == 0 {
 			accBrightness += averageBrightness
 		} else {
+			//If signs are different, then an inversion occured. Start new accumulation
 			accBrightness = averageBrightness
 		}
 
 		lastFrame = &brightnessFrame
 
+		//Create new entry
 		var accumulation BrightnessAccumulation
 		accumulation.Index = frame.Index
 		accumulation.Accumulation = accBrightness
 		accumulation.Brightness = averageBrightness
-
 		brightnessAcc.PushBack(accumulation)
 	}
 
 	return brightnessAcc, nil
 }
 
-//In the future, we may want to parallize this
+//rGBFrameToBrightness converts an RGB frame to brightness
 func rGBFrameToBrightness(frame decoder.Frame) brightnessFrame {
 
 	var lframe brightnessFrame
 	lframe.Height = frame.Height
 	lframe.Width = frame.Width
 	size := frame.Height * frame.Width
-	data := make([]int, size, size)
+
+	pixelBuffer := make([]int, size, size)
 
 	for y := 0; y < frame.Height; y++ {
 		for x := 0; x < frame.Width; x++ {
 			pixel := frame.GetRGB(x, y)
-			lum := equations.RGBtoBrightness(pixel.Red, pixel.Green, pixel.Blue)
-			data[y*frame.Width+x] = lum
+			brightness := equations.RGBtoBrightness(pixel.Red, pixel.Green, pixel.Blue)
+			pixelBuffer[y*frame.Width+x] = brightness
 		}
 	}
+
 	lframe.Index = frame.Index
-	lframe.Pixels = data
+	lframe.Pixels = pixelBuffer
 	return lframe
 }
 
+//calculateFrameDifference takes 2 brightness frames and calculates brightness change per pixel
 func calculateFrameDifference(f1, f2 brightnessFrame) frameBrightnessDelta {
 	var frameDifference frameBrightnessDelta
 	var maxpos, maxneg int
@@ -200,10 +214,12 @@ func calculateFrameDifference(f1, f2 brightnessFrame) frameBrightnessDelta {
 	return frameDifference
 }
 
+//findAverageBrightness takes the calculated brightness differences and chooses the positive or negative bin
+//depending on which bin has the largest magnitude
 func findAverageBrightness(fd frameBrightnessDelta) int {
 	elementsRequired := int(float32(fd.Height*fd.Width) * equations.PercentageFlashArea)
-	positive := calculateAverageLuminance(fd.PositivePixels, elementsRequired, fd.MaxPos)
-	negative := calculateAverageLuminance(fd.NegativePixels, elementsRequired, fd.MaxNeg)
+	positive := calculateAverageBrightness(fd.PositivePixels, elementsRequired, fd.MaxPos)
+	negative := calculateAverageBrightness(fd.NegativePixels, elementsRequired, fd.MaxNeg)
 
 	if positive >= negative {
 		return positive
@@ -218,10 +234,11 @@ Take the top value elements in the histogram until you have an amount of pixels 
 Then compute the average value of those elements used:
 averageLuminance = Sum(luminanceOfElement * amountofElementsWithLuminance) / Sum(amountOfElementsWithLuminance)
 */
-func calculateAverageLuminance(histogram map[int]int, pixelsRequired, maxBrightness int) int {
+func calculateAverageBrightness(histogram map[int]int, pixelsRequired, maxBrightness int) int {
 
 	var pixelsScanned, accBrightness, averageDifference int
 
+	//Start at the top, going down in brightness checks
 	for brightness := maxBrightness; brightness > 0 && pixelsScanned < pixelsRequired; brightness-- {
 		pixelsWithBrightness, brightnessExists := histogram[brightness]
 
@@ -242,6 +259,8 @@ func calculateAverageLuminance(histogram map[int]int, pixelsRequired, maxBrightn
 	return averageDifference
 }
 
+//createFlashTable takes brightness accumulations and compresses it to just inversions
+//and how many frames the brightness trend lasted before the inversion
 func createFlashTable(brightnessAcc BrightnessAccumulationTable) FlashTable {
 	flashTable := list.New()
 
@@ -251,6 +270,7 @@ func createFlashTable(brightnessAcc BrightnessAccumulationTable) FlashTable {
 	brightnessElement := brightnessAcc.Front()
 
 	for {
+		//No more elements, push the last entry
 		if brightnessElement == nil {
 			var extreme Flash
 			extreme.Frames = amountOfFrames
@@ -260,15 +280,16 @@ func createFlashTable(brightnessAcc BrightnessAccumulationTable) FlashTable {
 		}
 
 		accumulation := brightnessElement.Value.(BrightnessAccumulation)
-
 		brightness := accumulation.Accumulation
 
+		//Signs are equal, trend continues
 		if (brightness < 0) == (localMaxima < 0) {
 			amountOfFrames++
 			if math.Abs(float64(localMaxima)) < math.Abs(float64(brightness)) {
 				localMaxima = brightness
 			}
 		} else {
+			//Inversion occured
 			var extreme Flash
 			extreme.Frames = amountOfFrames
 			extreme.Brightness = localMaxima
@@ -286,7 +307,7 @@ func createFlashTable(brightnessAcc BrightnessAccumulationTable) FlashTable {
 func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 	var hazardReport hazards.HazardReport
 
-	flashesPerSecondThreshold := 3
+	flashesPerSecondThreshold := equations.FlashFrequencyMax
 	frameCounter := 0
 	countedFlashes := 0
 	currentFrameIndex := 1
@@ -347,6 +368,10 @@ func createHazardReport(lumExtTab FlashTable, fps int) hazards.HazardReport {
 	return hazardReport
 }
 
+//consolidateHazardList compresses consecutive entries down into a hazard
+//consecutive entries are hazards where the previous hazard end is equal to the current hazard start
+//an example of a consecutive entry:
+//hazard1 {Start=0; End=3}, hazard2 {Start=3; End=6} = hazard {Start=0; End=6}
 func consolidateHazardList(li hazards.HazardList) hazards.HazardList {
 
 	if (li.Front()) == nil {
