@@ -2,7 +2,7 @@
 Epilguard analyzes for photosensitive content in videos, specifically flashing content. The project is compliant with [ITU-R BT.1702](https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.1702-0-200502-I!!PDF-E.pdf), which details how to identify photosensitive hazards in video content.
 
 ## Using Epilguard
-You can download the latest release of epilguard for your platform from github. Before you can use Epilguard, download a build of [FFMpeg](https://www.ffmpeg.org/) and add it to your PATH.
+You can download the [latest release](https://github.com/lycerius/epilguard/releases/latest) of epilguard for your platform. Before you can use Epilguard, download a build of [FFMpeg](https://www.ffmpeg.org/) and add it to your PATH.
 
 You can now use epilguard from your terminal.
 ```terminal
