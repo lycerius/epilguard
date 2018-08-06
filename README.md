@@ -8,14 +8,19 @@ To use epilguard:
 ``` sh
 #!/bin/bash
 $ epilguard
-USAGE: epilguard [input-file] [csv-export-directory]
+epilguard [options] video
+
+  -buffer-size uint
+        Sets the size of the lookahead framebuffer, must be > 0 (default 30)
+  -report-dir string
+        directory to write report files to (default $cwd)
 ```
 
 [input-file] is the video to analyze, [csv-export-directory] is where you would like to write the report artifacts to.
 ## Creating Reports
 To create a hazard report for a video:
 ``` sh
-$ epilguard video.mp4 report/directory
+$ epilguard -report-dir=report/directory videoname
 ```
 
 This will analyze video.mp4 and create the hazard report in report/directory. The report consists of 4 separate files:
@@ -69,5 +74,10 @@ $ go get -u github.com/lycerius/epilguard
 If cloning was successful, you can now execute Epilguard as normal
 ``` sh
 $ epilguard
-USAGE: epilguard [input-file] [csv-export-directory]
+epilguard [options] video
+
+  -buffer-size uint
+        Sets the size of the lookahead framebuffer, must be > 0 (default 30)
+  -report-dir string
+        directory to write report files to (default $cwd)
 ```
